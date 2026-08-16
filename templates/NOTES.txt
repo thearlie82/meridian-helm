@@ -14,7 +14,7 @@ Prerequisites (must exist before sync):
   - Secret "{{ .Values.api.secretName }}" with key MERIDIAN_JWT_SECRET
       oc create secret generic {{ .Values.api.secretName }} \
         --from-literal=MERIDIAN_JWT_SECRET=$(openssl rand -hex 32) -n {{ .Values.global.namespace }}
-  - Image pull secret "{{ (index .Values.global.imagePullSecrets 0).name }}" for ghcr.io
+  - Image pull secret "{{ (index .Values.global.imagePullSecrets 0).name }}" for the GHES registry
 
 Check status:
   oc get pods,cluster -n {{ .Values.global.namespace }}

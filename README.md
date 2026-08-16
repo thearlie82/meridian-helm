@@ -41,9 +41,10 @@ Create these in the target namespace before the first sync:
 oc create secret generic meridian-secrets \
   --from-literal=MERIDIAN_JWT_SECRET=$(openssl rand -hex 32) -n meridian
 
-# ghcr.io pull secret (fleet-standard name)
-oc create secret docker-registry ghcr-pull-secret \
-  --docker-server=ghcr.io --docker-username=<user> --docker-password=<pat> -n meridian
+# GHES container-registry pull secret
+oc create secret docker-registry ghes-pull-secret \
+  --docker-server=containers.adt-git01.adt.network \
+  --docker-username=<user> --docker-password=<pat> -n meridian
 ```
 
 The CNPG `<clusterName>-app` secret is created automatically by the operator.
@@ -57,6 +58,7 @@ helm template meridian . --namespace meridian
 
 ## Images
 
-Built and pushed by CI to `ghcr.io/thearlie82/meridian-api` and
-`ghcr.io/thearlie82/meridian-web`, tagged with the short commit SHA. Set the
-tags per environment in `adt-grc-gitops:environments/meridian/<env>/values.yaml`.
+Built and pushed by CI (in the Meridian source repo on GHES) to
+`containers.adt-git01.adt.network/adrian-thearle/meridian-api` and
+`.../meridian-web`, tagged with the short commit SHA. Set the tags per
+environment in `adt-grc-gitops:environments/meridian/<env>/values.yaml`.

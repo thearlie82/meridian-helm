@@ -3,7 +3,7 @@
 enabled: true
 replicaCount: 1
 image:
-  repository: ghcr.io/thearlie82/meridian-api
+  repository: containers.adt-git01.adt.network/adrian-thearle/meridian-api
   tag: latest
   pullPolicy: Always
 secretName: meridian-secrets

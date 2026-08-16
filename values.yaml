@@ -9,9 +9,9 @@
 #                              meridian-secrets --from-literal=MERIDIAN_JWT_SECRET=...)
 
 global:
-  imageRegistry: ghcr.io/thearlie82
+  imageRegistry: containers.adt-git01.adt.network/adrian-thearle
   imagePullSecrets:
-    - name: ghcr-pull-secret
+    - name: ghes-pull-secret
   namespace: meridian
 
 # --- Postgres (CloudNativePG operator) --------------------------------------
@@ -33,7 +33,7 @@ api:
   enabled: true
   replicaCount: 1
   image:
-    repository: ghcr.io/thearlie82/meridian-api
+    repository: containers.adt-git01.adt.network/adrian-thearle/meridian-api
     tag: latest
     pullPolicy: Always
   # Secret holding MERIDIAN_JWT_SECRET (created out-of-band).
@@ -63,7 +63,7 @@ web:
   enabled: true
   replicaCount: 1
   image:
-    repository: ghcr.io/thearlie82/meridian-web
+    repository: containers.adt-git01.adt.network/adrian-thearle/meridian-web
     tag: latest
     pullPolicy: Always
   # In-cluster upstream the SPA proxies /api/ to (the api Service).
