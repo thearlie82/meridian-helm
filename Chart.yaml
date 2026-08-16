@@ -1,0 +1,16 @@
+apiVersion: v2
+name: meridian
+description: Meridian - open re-implementation of Dynamics 365 F&O (SCM) + CE (Project Operations). Rust API + React web on OpenShift, Postgres via CloudNativePG.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+
+dependencies:
+  - name: api
+    version: 0.1.0
+    repository: file://charts/api
+    condition: api.enabled
+  - name: web
+    version: 0.1.0
+    repository: file://charts/web
+    condition: web.enabled

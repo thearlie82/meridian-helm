@@ -1,0 +1,29 @@
+{{- if .Values.cnpg.enabled }}
+# CloudNativePG Cluster. The operator provisions Postgres and publishes a Secret
+# named "{{ .Values.cnpg.clusterName }}-app" containing a `uri` key that the API
+# consumes as DATABASE_URL. Requires ServerSideApply (set on the Argo CD app).
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ .Values.cnpg.clusterName }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "meridian.labels" . | nindent 4 }}
+    app.kubernetes.io/component: database
+spec:
+  instances: {{ .Values.cnpg.instances }}
+  {{- with .Values.cnpg.imageName }}
+  imageName: {{ . }}
+  {{- end }}
+  bootstrap:
+    initdb:
+      database: {{ .Values.cnpg.database }}
+      owner: {{ .Values.cnpg.owner }}
+  storage:
+    size: {{ .Values.cnpg.storageSize }}
+    {{- with .Values.cnpg.storageClass }}
+    storageClass: {{ . }}
+    {{- end }}
+  monitoring:
+    enablePodMonitor: false
+{{- end }}

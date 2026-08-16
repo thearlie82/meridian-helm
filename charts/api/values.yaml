@@ -1,0 +1,26 @@
+# Defaults for the api subchart. The umbrella chart's `api:` block overrides
+# these; `global:` is shared from the umbrella.
+enabled: true
+replicaCount: 1
+image:
+  repository: ghcr.io/thearlie82/meridian-api
+  tag: latest
+  pullPolicy: Always
+secretName: meridian-secrets
+database:
+  secretName: meridian-pg-app
+  uriKey: uri
+env:
+  RUST_LOG: "info"
+  MERIDIAN_SEED: "false"
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+route:
+  enabled: true
+  host: meridian-api.apps-crc.testing
+  path: /

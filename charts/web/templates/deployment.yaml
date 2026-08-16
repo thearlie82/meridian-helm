@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "web.fullname" . }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "web.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  revisionHistoryLimit: 1
+  selector:
+    matchLabels:
+      {{- include "web.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "web.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      # OpenShift restricted-v2: namespace assigns UID/GID/fsGroup.
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: web
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            # Upstream the SPA proxies /api/ to. The nginx entrypoint runs
+            # envsubst over this at start (NGINX_ENVSUBST_FILTER=API_UPSTREAM,
+            # baked into the image).
+            - name: API_UPSTREAM
+              value: {{ .Values.apiUpstream | quote }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 5
+          # nginx-unprivileged rewrites /etc/nginx/conf.d and writes temp/pid
+          # files, so the root filesystem stays writable (not read-only).
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

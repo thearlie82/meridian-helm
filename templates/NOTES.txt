@@ -1,0 +1,21 @@
+Meridian has been deployed to namespace {{ .Values.global.namespace }}.
+
+  Web (F&O + Project Operations UI):
+    https://{{ .Values.web.route.host }}{{ .Values.web.route.path }}
+{{- if .Values.api.route.enabled }}
+  API (external automation, OpenAPI at /swagger-ui):
+    https://{{ .Values.api.route.host }}{{ .Values.api.route.path }}
+{{- end }}
+
+Database: CloudNativePG cluster "{{ .Values.cnpg.clusterName }}"
+  Connection secret: {{ .Values.cnpg.clusterName }}-app (key: uri)
+
+Prerequisites (must exist before sync):
+  - Secret "{{ .Values.api.secretName }}" with key MERIDIAN_JWT_SECRET
+      oc create secret generic {{ .Values.api.secretName }} \
+        --from-literal=MERIDIAN_JWT_SECRET=$(openssl rand -hex 32) -n {{ .Values.global.namespace }}
+  - Image pull secret "{{ (index .Values.global.imagePullSecrets 0).name }}" for ghcr.io
+
+Check status:
+  oc get pods,cluster -n {{ .Values.global.namespace }}
+  curl https://{{ .Values.api.route.host }}/healthz

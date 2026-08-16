@@ -1,0 +1,82 @@
+# Meridian - default values (dev-safe). Per-environment overrides live in
+# adt-grc-gitops: environments/meridian/<env>/values.yaml
+#
+# Secrets are NEVER committed. The API consumes two secrets that must exist in
+# the namespace before sync:
+#   - <cnpg.clusterName>-app  (created automatically by the CNPG operator; holds
+#                              the connection `uri` used as DATABASE_URL)
+#   - meridian-secrets        (created out-of-band: oc create secret generic
+#                              meridian-secrets --from-literal=MERIDIAN_JWT_SECRET=...)
+
+global:
+  imageRegistry: ghcr.io/thearlie82
+  imagePullSecrets:
+    - name: ghcr-pull-secret
+  namespace: meridian
+
+# --- Postgres (CloudNativePG operator) --------------------------------------
+# The operator provisions the cluster and publishes a Secret named
+# "<clusterName>-app" whose `uri` key is a ready-to-use libpq connection string.
+cnpg:
+  enabled: true
+  clusterName: meridian-pg
+  instances: 1
+  storageSize: 10Gi
+  storageClass: ""   # empty = cluster default
+  imageName: ""      # empty = operator default
+  # initdb database + owner. The `uri` in <clusterName>-app targets this db.
+  database: meridian
+  owner: meridian
+
+# --- API (Rust / axum) ------------------------------------------------------
+api:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: ghcr.io/thearlie82/meridian-api
+    tag: latest
+    pullPolicy: Always
+  # Secret holding MERIDIAN_JWT_SECRET (created out-of-band).
+  secretName: meridian-secrets
+  # CNPG-published secret + key that carry the Postgres connection string.
+  database:
+    secretName: meridian-pg-app
+    uriKey: uri
+  env:
+    RUST_LOG: "info"
+    MERIDIAN_SEED: "false"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+  # The API is exposed directly for external automation (complete API surface).
+  route:
+    enabled: true
+    host: meridian-api.apps-crc.testing
+    path: /
+
+# --- Web (React SPA behind nginx) -------------------------------------------
+web:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: ghcr.io/thearlie82/meridian-web
+    tag: latest
+    pullPolicy: Always
+  # In-cluster upstream the SPA proxies /api/ to (the api Service).
+  apiUpstream: http://meridian-api:8080
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  # Public browser entrypoint.
+  route:
+    enabled: true
+    host: meridian.apps-crc.testing
+    path: /
