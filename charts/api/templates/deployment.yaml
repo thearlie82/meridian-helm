@@ -47,6 +47,17 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secretName }}
                   key: MERIDIAN_JWT_SECRET
+            {{- /* Additional secret-backed env vars (e.g. AWS creds for the
+                   Bedrock assist backend). Each entry names a key that must
+                   exist in `secretName`; values are never rendered into the
+                   chart, only referenced. */}}
+            {{- range .Values.secretEnv }}
+            - name: {{ . }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.secretName }}
+                  key: {{ . }}
+            {{- end }}
             {{- range $key, $value := .Values.env }}
             - name: {{ $key }}
               value: {{ $value | quote }}

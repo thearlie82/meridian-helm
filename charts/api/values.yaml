@@ -7,6 +7,10 @@ image:
   tag: latest
   pullPolicy: Always
 secretName: meridian-secrets
+# Names of additional keys in `secretName` to inject as env via secretKeyRef.
+# Empty by default; environments that enable a live assist backend add the
+# relevant credential keys (e.g. AWS_ACCESS_KEY_ID) here.
+secretEnv: []
 database:
   secretName: meridian-pg-app
   uriKey: uri
