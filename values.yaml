@@ -45,6 +45,25 @@ api:
   env:
     RUST_LOG: "info"
     MERIDIAN_SEED: "false"
+    # --- AI-help (session-log capture + issue reporting) --------------------
+    # Session-scoped application-log capture into a DB table (Stage A). The
+    # migration ships in the deployed image, so enabling this is safe.
+    MERIDIAN_SESSION_LOG: "true"
+    # Optional tracing EnvFilter for the capture layer (default "info"):
+    #   MERIDIAN_SESSION_LOG_FILTER: "info"
+    #
+    # Human-gated GHES issue FILING is deliberately OFF: no dedicated bot GHES
+    # account/token exists yet, and the read-only issue tools stay unadvertised
+    # while MERIDIAN_GHES_API is empty. To ENABLE AI issue reporting later:
+    #   1. Provision the dedicated bot GHES account + a PAT scoped to `repo`
+    #      issues on `adrian-thearle/meridian`.
+    #   2. Add `MERIDIAN_GHES_TOKEN` to the `meridian-secrets` Secret and a
+    #      matching `secretKeyRef` env entry in the API deployment template
+    #      (in this chart: append the key name to `api.secretEnv`).
+    #   3. Set `MERIDIAN_GHES_API` (e.g. https://adt-git01.adt.network/api/v3)
+    #      and `MERIDIAN_GHES_REPO: adrian-thearle/meridian` here.
+    #   4. Flip `MERIDIAN_AI_ISSUE_CREATION` to "true".
+    MERIDIAN_AI_ISSUE_CREATION: "false"
   resources:
     requests:
       cpu: 100m
