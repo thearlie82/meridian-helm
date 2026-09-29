@@ -20,6 +20,11 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if .Values.testRunner.enabled }}
+      # Run under the launcher SA so the api can create + follow test-runner
+      # Jobs in this namespace (see rbac.yaml / serviceaccount.yaml).
+      serviceAccountName: {{ .Values.testRunner.serviceAccountName }}
+      {{- end }}
       # OpenShift restricted-v2: the namespace assigns UID/GID/fsGroup, so we
       # omit runAsUser/runAsGroup and only assert the hardening invariants.
       securityContext:
@@ -47,6 +52,20 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secretName }}
                   key: MERIDIAN_JWT_SECRET
+            {{- if .Values.testRunner.enabled }}
+            # The pod's own namespace (downward API): the test-runner launcher
+            # lands Jobs in this instance's namespace, no override knob.
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            {{- with .Values.testRunner.pullSecret }}
+            # Image-pull secret name attached to launched runner Jobs so they
+            # can pull private runner images. Referenced by name only.
+            - name: MERIDIAN_TEST_PULL_SECRET
+              value: {{ . | quote }}
+            {{- end }}
+            {{- end }}
             {{- /* Additional secret-backed env vars (e.g. AWS creds for the
                    Bedrock assist backend). Each entry names a key that must
                    exist in `secretName`; values are never rendered into the
