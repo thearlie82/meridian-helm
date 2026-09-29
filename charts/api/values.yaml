@@ -28,3 +28,14 @@ route:
   enabled: true
   host: meridian-api.apps-crc.testing
   path: /
+# Test-runner launcher. When enabled, the api runs under a dedicated
+# ServiceAccount granted namespaced RBAC to create + follow the third-party
+# runner Jobs of the `openshift_batch_job` test type (they launch into this
+# instance's own namespace). Cross-namespace placement is future in-app config.
+testRunner:
+  enabled: true
+  serviceAccountName: meridian-test-launcher
+  # Name of a pre-provisioned dockerconfigjson pull secret with creds for the
+  # registry hosting private runner images. Created out-of-band (like the other
+  # pull secrets) and referenced here by name only; empty disables the env.
+  pullSecret: ""

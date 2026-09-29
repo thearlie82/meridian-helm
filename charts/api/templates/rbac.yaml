@@ -1,0 +1,36 @@
+{{- if .Values.testRunner.enabled }}
+# Namespaced launcher RBAC for the api's in-process test-runner dispatch: create
+# and reap third-party runner Jobs, and follow their pods' logs (JSONL stdout).
+# Job-creation is an API-level permission only — no elevated SCC; runner pods
+# run under restricted-v2 and get no mounted SA token.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Values.testRunner.serviceAccountName }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "api.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Values.testRunner.serviceAccountName }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "api.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.testRunner.serviceAccountName }}
+    namespace: {{ .Values.global.namespace }}
+roleRef:
+  kind: Role
+  name: {{ .Values.testRunner.serviceAccountName }}
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
