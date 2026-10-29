@@ -1,4 +1,4 @@
-{{- if .Values.testRunner.enabled }}
+{{- if or .Values.testRunner.enabled .Values.cadConversion.enabled }}
 # Namespaced launcher RBAC for the api's in-process test-runner dispatch: create
 # and reap third-party runner Jobs, and follow their pods' logs (JSONL stdout).
 # Job-creation is an API-level permission only — no elevated SCC; runner pods

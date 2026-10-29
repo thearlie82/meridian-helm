@@ -20,9 +20,10 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if .Values.testRunner.enabled }}
+      {{- if or .Values.testRunner.enabled .Values.cadConversion.enabled }}
       # Run under the launcher SA so the api can create + follow test-runner
-      # Jobs in this namespace (see rbac.yaml / serviceaccount.yaml).
+      # and STEP-conversion Jobs in this namespace (see rbac.yaml /
+      # serviceaccount.yaml).
       serviceAccountName: {{ .Values.testRunner.serviceAccountName }}
       {{- end }}
       # OpenShift restricted-v2: the namespace assigns UID/GID/fsGroup, so we
@@ -52,19 +53,41 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secretName }}
                   key: MERIDIAN_JWT_SECRET
-            {{- if .Values.testRunner.enabled }}
-            # The pod's own namespace (downward API): the test-runner launcher
-            # lands Jobs in this instance's namespace, no override knob.
+            {{- if or .Values.testRunner.enabled .Values.cadConversion.enabled }}
+            # The pod's own namespace (downward API): the test-runner and STEP
+            # converter launchers land Jobs in this instance's namespace, no
+            # override knob.
             - name: POD_NAMESPACE
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            {{- end }}
+            {{- if .Values.testRunner.enabled }}
             {{- with .Values.testRunner.pullSecret }}
             # Image-pull secret name attached to launched runner Jobs so they
             # can pull private runner images. Referenced by name only.
             - name: MERIDIAN_TEST_PULL_SECRET
               value: {{ . | quote }}
             {{- end }}
+            {{- end }}
+            {{- if .Values.cadConversion.enabled }}
+            # STEP → GLB converter: one Job per conversion, run from the api's
+            # own image with the api's pull secrets, calling back into the api
+            # Service.
+            - name: MERIDIAN_CAD_CONVERTER
+              value: "kube"
+            - name: MERIDIAN_API_IMAGE
+              value: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+            {{- $pullSecrets := list }}
+            {{- range .Values.global.imagePullSecrets }}
+            {{- $pullSecrets = append $pullSecrets .name }}
+            {{- end }}
+            - name: MERIDIAN_API_IMAGE_PULL_SECRETS
+              value: {{ join "," $pullSecrets | quote }}
+            - name: MERIDIAN_INTERNAL_API_URL
+              value: "http://{{ include "api.fullname" . }}:8080"
+            - name: MERIDIAN_CAD_PART_NUMBER_PROPERTY
+              value: {{ .Values.cadConversion.partNumberProperty | quote }}
             {{- end }}
             {{- /* Additional secret-backed env vars (e.g. AWS creds for the
                    Bedrock assist backend). Each entry names a key that must

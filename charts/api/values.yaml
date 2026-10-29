@@ -49,3 +49,10 @@ testRunner:
   # registry hosting private runner images. Created out-of-band (like the other
   # pull secrets) and referenced here by name only; empty disables the env.
   pullSecret: ""
+# STEP → GLB converter. When enabled the api launches one Kubernetes Job per
+# conversion from its OWN image (MERIDIAN_API_IMAGE) with the api's pull
+# secrets; the Job calls back into the api Service with a scoped token and
+# mounts no volume and no DB secret. Needs the Job RBAC below.
+cadConversion:
+  enabled: true
+  partNumberProperty: "PLM_PART_NUMBER"

@@ -49,6 +49,41 @@ oc create secret docker-registry ghes-pull-secret \
 
 The CNPG `<clusterName>-app` secret is created automatically by the operator.
 
+## STEP → GLB conversion (`api.cadConversion`)
+
+```yaml
+api:
+  cadConversion:
+    enabled: true                         # default
+    partNumberProperty: "PLM_PART_NUMBER" # STEP property holding the part number
+```
+
+When enabled, the api launches one Kubernetes Job per conversion from its own
+image, with the api's pull secrets. The Job calls back into the api Service with
+a scoped token and mounts no volume and no DB secret. It reuses the test-runner
+launcher ServiceAccount, Role and RoleBinding (Jobs create/get/list/watch/delete,
+pods + pods/log read), which now render when either `testRunner.enabled` or
+`cadConversion.enabled` is set. The api Deployment gets:
+
+| Env | Value |
+| --- | --- |
+| `POD_NAMESPACE` | downward API `metadata.namespace` (shared with the test runner) |
+| `MERIDIAN_CAD_CONVERTER` | `kube` |
+| `MERIDIAN_API_IMAGE` | `<image.repository>:<image.tag>` |
+| `MERIDIAN_API_IMAGE_PULL_SECRETS` | `global.imagePullSecrets[].name`, comma-joined (empty when unset) |
+| `MERIDIAN_INTERNAL_API_URL` | `http://<api fullname>:8080` |
+| `MERIDIAN_CAD_PART_NUMBER_PROPERTY` | `cadConversion.partNumberProperty` |
+
+The api image must include `/opt/cadconv` (meridian ≥ the STEP conversion
+merge); older images ignore these env vars.
+
+Capacity: each conversion Job requests 500m / 1Gi with limits of 2 CPU / 4Gi. On
+CRC, check the node has the headroom (`oc adm top node`) before a large STEP.
+
+The chart ships no NetworkPolicy; if one is added that selects the api pods,
+allow ingress on TCP 8080 from pods labelled
+`app.kubernetes.io/name: meridian-cad-converter`.
+
 ## Local validation
 
 ```sh
