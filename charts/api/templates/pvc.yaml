@@ -1,0 +1,22 @@
+{{- if .Values.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "api.fullname" . }}-engineering-files
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "api.labels" . | nindent 4 }}
+  annotations:
+    # Keep uploaded files if the chart is ever uninstalled or the PVC pruned.
+    helm.sh/resource-policy: keep
+    argocd.argoproj.io/sync-options: Delete=false
+spec:
+  accessModes:
+    - {{ .Values.persistence.accessMode }}
+  {{- with .Values.persistence.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size }}
+{{- end }}

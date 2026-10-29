@@ -24,6 +24,16 @@ resources:
   limits:
     cpu: "1"
     memory: 512Mi
+# Engineering file store (uploaded CAD models, step media). The container's
+# root filesystem is read-only, so uploads need this volume. ReadWriteOnce is
+# fine for one replica; more replicas need a ReadWriteMany class.
+persistence:
+  enabled: true
+  mountPath: /var/lib/meridian/engineering-files
+  size: 10Gi
+  accessMode: ReadWriteOnce
+  # Empty uses the cluster's default StorageClass.
+  storageClass: ""
 route:
   enabled: true
   host: meridian-api.apps-crc.testing

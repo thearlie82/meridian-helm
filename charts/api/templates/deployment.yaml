@@ -81,6 +81,11 @@ spec:
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
+            {{- if .Values.persistence.enabled }}
+            # Where the engineering file store (CAD models, step media) writes.
+            - name: MERIDIAN_ENGINEERING_FILE_ROOT
+              value: {{ .Values.persistence.mountPath | quote }}
+            {{- end }}
           livenessProbe:
             httpGet:
               path: /healthz
@@ -102,3 +107,16 @@ spec:
               drop: ["ALL"]
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          {{- if .Values.persistence.enabled }}
+          # The root filesystem is read-only; uploaded engineering files live
+          # on this volume instead.
+          volumeMounts:
+            - name: engineering-files
+              mountPath: {{ .Values.persistence.mountPath }}
+          {{- end }}
+      {{- if .Values.persistence.enabled }}
+      volumes:
+        - name: engineering-files
+          persistentVolumeClaim:
+            claimName: {{ include "api.fullname" . }}-engineering-files
+      {{- end }}
