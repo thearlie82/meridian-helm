@@ -1,0 +1,15 @@
+{{- if .Values.cadConversion.enabled }}
+# A backstop on Job objects in the namespace (STEP converter and test-runner
+# Jobs alike; finished converter Jobs are TTL-reaped after 10 minutes). The api
+# itself caps active conversions per tenant and per user.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: meridian-jobs
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "api.labels" . | nindent 4 }}
+spec:
+  hard:
+    count/jobs.batch: {{ .Values.cadConversion.maxJobs | quote }}
+{{- end }}

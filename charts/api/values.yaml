@@ -56,3 +56,5 @@ testRunner:
 cadConversion:
   enabled: true
   partNumberProperty: "PLM_PART_NUMBER"
+  # ResourceQuota on Job objects in the namespace (converter + test runner).
+  maxJobs: 30

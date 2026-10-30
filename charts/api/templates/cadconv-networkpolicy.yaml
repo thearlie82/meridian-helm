@@ -1,0 +1,42 @@
+{{- if .Values.cadConversion.enabled }}
+# The STEP converter parses untrusted STEP files with OCCT. Its pods get no
+# ingress, and egress only to the api pods (the meridian-api Service, 8080) and
+# cluster DNS, so a compromised converter can't reach Postgres, OpenBao, the
+# kube API or the internet. Selects the Job pods by the label the api sets.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: meridian-cad-converter
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "api.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: meridian-cad-converter
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress: []
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "api.selectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: 8080
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-dns
+      ports:
+        - protocol: UDP
+          port: 5353
+        - protocol: TCP
+          port: 5353
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- end }}
