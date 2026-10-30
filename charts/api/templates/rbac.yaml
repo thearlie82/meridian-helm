@@ -17,6 +17,13 @@ rules:
   - apiGroups: [""]
     resources: ["pods", "pods/log"]
     verbs: ["get", "list", "watch"]
+  {{- if .Values.cadConversion.enabled }}
+  # The STEP converter's token goes in a per-Job Secret owned by the Job (it is
+  # garbage-collected with it), so it never sits in the Job spec.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create"]
+  {{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
