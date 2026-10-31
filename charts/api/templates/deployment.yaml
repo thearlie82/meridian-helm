@@ -96,6 +96,10 @@ spec:
               value: "kube"
             - name: MERIDIAN_SUITE_DISCOVER_TIMEOUT_SECS
               value: {{ .discoverTimeoutSecs | quote }}
+            - name: MERIDIAN_SUITE_BUILD_READER
+              value: {{ .buildReader | quote }}
+            - name: MERIDIAN_SUITE_TRACK_INTERVAL_SECS
+              value: {{ .trackIntervalSecs | quote }}
             - name: MERIDIAN_SUITE_GITHUB_ORG
               value: {{ .githubOrg | quote }}
             - name: MERIDIAN_SUITE_NAME_SUFFIX

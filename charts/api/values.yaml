@@ -74,6 +74,10 @@ suiteDiscovery:
   webOrigin: "https://meridian.apps.cluster.adt.network"
   githubClientSecretName: "meridian-github-app"
   discoverTimeoutSecs: "180"
+  # Build provenance + "newer build" reads (ghcr | noop) and the hourly
+  # track-HEAD sweep ("0" turns the sweep off).
+  buildReader: "ghcr"
+  trackIntervalSecs: "3600"
 cadConversion:
   enabled: true
   partNumberProperty: "PLM_PART_NUMBER"

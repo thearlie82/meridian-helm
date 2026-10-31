@@ -26,6 +26,15 @@ rules:
     resources: ["secrets"]
     verbs: ["create", "patch", "delete"]
   {{- end }}
+  {{- if and .Values.suiteDiscovery.enabled .Values.testRunner.pullSecret }}
+  # The suite build reader (and the background track sweep, which has no
+  # signed-in user) reads the stored runner pull credential, and only that one
+  # Secret by name.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: [{{ .Values.testRunner.pullSecret | quote }}]
+    verbs: ["get"]
+  {{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
