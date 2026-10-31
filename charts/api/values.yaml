@@ -67,7 +67,11 @@ suiteDiscovery:
   allowedRegistries: "ghcr.io,quay.apps.cluster.adt.network"
   githubAppKind: "oauth_app"
   githubClientId: "Ov23lilNi8h6RS0LmzPs"
-  githubCallbackUrl: "https://api.meridian.apps.cluster.adt.network/api/v1/engineering/suite-registry/github/callback"
+  # Served through the web origin (nginx proxies /api/), so the sign-in
+  # pop-up and the editor are same-origin and the callback can hand the code
+  # to the signed-in editor with a strict origin check.
+  githubCallbackUrl: "https://meridian.apps.cluster.adt.network/api/v1/engineering/suite-registry/github/callback"
+  webOrigin: "https://meridian.apps.cluster.adt.network"
   githubClientSecretName: "meridian-github-app"
   discoverTimeoutSecs: "180"
 cadConversion:

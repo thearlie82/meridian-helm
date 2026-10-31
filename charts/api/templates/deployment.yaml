@@ -110,6 +110,8 @@ spec:
               value: {{ .githubClientId | quote }}
             - name: MERIDIAN_SUITE_GITHUB_CALLBACK_URL
               value: {{ .githubCallbackUrl | quote }}
+            - name: MERIDIAN_WEB_ORIGIN
+              value: {{ .webOrigin | quote }}
             - name: MERIDIAN_SUITE_GITHUB_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
