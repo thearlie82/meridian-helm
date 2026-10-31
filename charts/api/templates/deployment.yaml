@@ -53,7 +53,7 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secretName }}
                   key: MERIDIAN_JWT_SECRET
-            {{- if or .Values.testRunner.enabled .Values.cadConversion.enabled }}
+            {{- if or .Values.testRunner.enabled .Values.cadConversion.enabled .Values.suiteDiscovery.enabled }}
             # The pod's own namespace (downward API): the test-runner and STEP
             # converter launchers land Jobs in this instance's namespace, no
             # override knob.
@@ -88,6 +88,35 @@ spec:
               value: "http://{{ include "api.fullname" . }}:8080"
             - name: MERIDIAN_CAD_PART_NUMBER_PROPERTY
               value: {{ .Values.cadConversion.partNumberProperty | quote }}
+            {{- end }}
+            {{- with .Values.suiteDiscovery }}
+            {{- if .enabled }}
+            # MPP suite discovery + GitHub package browsing (see values).
+            - name: MERIDIAN_SUITE_DISCOVER
+              value: "kube"
+            - name: MERIDIAN_SUITE_DISCOVER_TIMEOUT_SECS
+              value: {{ .discoverTimeoutSecs | quote }}
+            - name: MERIDIAN_SUITE_GITHUB_ORG
+              value: {{ .githubOrg | quote }}
+            - name: MERIDIAN_SUITE_NAME_SUFFIX
+              value: {{ .nameSuffix | quote }}
+            - name: MERIDIAN_SUITE_EXTRA_PACKAGES
+              value: {{ .extraPackages | quote }}
+            - name: MERIDIAN_SUITE_ALLOWED_REGISTRIES
+              value: {{ .allowedRegistries | quote }}
+            - name: MERIDIAN_SUITE_GITHUB_APP_KIND
+              value: {{ .githubAppKind | quote }}
+            - name: MERIDIAN_SUITE_GITHUB_CLIENT_ID
+              value: {{ .githubClientId | quote }}
+            - name: MERIDIAN_SUITE_GITHUB_CALLBACK_URL
+              value: {{ .githubCallbackUrl | quote }}
+            - name: MERIDIAN_SUITE_GITHUB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .githubClientSecretName }}
+                  key: client_secret
+                  optional: true
+            {{- end }}
             {{- end }}
             {{- /* Additional secret-backed env vars (e.g. AWS creds for the
                    Bedrock assist backend). Each entry names a key that must

@@ -1,4 +1,4 @@
-{{- if or .Values.testRunner.enabled .Values.cadConversion.enabled }}
+{{- if or .Values.testRunner.enabled .Values.cadConversion.enabled .Values.suiteDiscovery.enabled }}
 # Namespaced launcher RBAC for the api's in-process test-runner dispatch: create
 # and reap third-party runner Jobs, and follow their pods' logs (JSONL stdout).
 # Job-creation is an API-level permission only — no elevated SCC; runner pods
@@ -17,12 +17,14 @@ rules:
   - apiGroups: [""]
     resources: ["pods", "pods/log"]
     verbs: ["get", "list", "watch"]
-  {{- if .Values.cadConversion.enabled }}
-  # The STEP converter's token goes in a per-Job Secret owned by the Job (it is
-  # garbage-collected with it), so it never sits in the Job spec.
+  {{- if or .Values.cadConversion.enabled .Values.suiteDiscovery.enabled }}
+  # Per-Job Secrets owned by their Job (garbage-collected with it): the STEP
+  # converter's token, and a signed-in engineer's ghcr pull credential for a
+  # suite discover (patch sets the owner reference; delete cleans up when the
+  # Job create fails).
   - apiGroups: [""]
     resources: ["secrets"]
-    verbs: ["create"]
+    verbs: ["create", "patch", "delete"]
   {{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1

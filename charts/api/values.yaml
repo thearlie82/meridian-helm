@@ -53,6 +53,23 @@ testRunner:
 # conversion from its OWN image (MERIDIAN_API_IMAGE) with the api's pull
 # secrets; the Job calls back into the api Service with a scoped token and
 # mounts no volume and no DB secret. Needs the Job RBAC below.
+# MPP automated-test authoring: the api discovers a suite image by running it
+# in `discover` mode as a Job, and lets engineers browse the org's suite
+# packages after a GitHub sign-in (classic OAuth App, scope read:packages).
+# The client secret lives in a pre-provisioned Secret, referenced by name only;
+# without it sign-in reports unavailable and pasting a reference still works.
+suiteDiscovery:
+  enabled: true
+  githubOrg: "Advanced-Design-Technology"
+  nameSuffix: "_test"
+  # Packages shown when browsing whatever their suffix (comma-separated).
+  extraPackages: "kvmbontester"
+  allowedRegistries: "ghcr.io,quay.apps.cluster.adt.network"
+  githubAppKind: "oauth_app"
+  githubClientId: "Ov23lilNi8h6RS0LmzPs"
+  githubCallbackUrl: "https://api.meridian.apps.cluster.adt.network/api/v1/engineering/suite-registry/github/callback"
+  githubClientSecretName: "meridian-github-app"
+  discoverTimeoutSecs: "180"
 cadConversion:
   enabled: true
   partNumberProperty: "PLM_PART_NUMBER"
