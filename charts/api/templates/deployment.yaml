@@ -124,6 +124,33 @@ spec:
                   optional: true
             {{- end }}
             {{- end }}
+            {{- with .Values.xjtag }}
+            {{- if .enabled }}
+            # XJTAG package pull from Quay: SA token -> OpenBao -> OIDC JWT ->
+            # Quay robot federation (see values). No static credential.
+            - name: MERIDIAN_XJTAG_QUAY_URL
+              value: {{ .quayUrl | quote }}
+            - name: MERIDIAN_XJTAG_OPENBAO_ADDR
+              value: {{ .openbao.addr | quote }}
+            - name: MERIDIAN_XJTAG_OPENBAO_ROLE
+              value: {{ .openbao.role | quote }}
+            - name: MERIDIAN_XJTAG_SA_TOKEN_PATH
+              value: "/var/run/secrets/openbao/token"
+            - name: MERIDIAN_XJTAG_QUAY_CA_FILE
+              value: "/etc/meridian/quay-ca/ca.crt"
+            - name: MERIDIAN_XJTAG_PULL_ROBOT_TEMPLATE
+              value: {{ .pullRobotTemplate | quote }}
+            {{- with .maxPackageBytes }}
+            - name: MERIDIAN_XJTAG_MAX_PACKAGE_BYTES
+              {{- /* An unquoted YAML number arrives as float64; print it as an integer. */}}
+              value: {{ kindIs "float64" . | ternary (int64 .) . | quote }}
+            {{- end }}
+            {{- with .ghesApi }}
+            - name: MERIDIAN_XJTAG_GHES_API
+              value: {{ . | quote }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
             {{- /* Additional secret-backed env vars (e.g. AWS creds for the
                    Bedrock assist backend). Each entry names a key that must
                    exist in `secretName`; values are never rendered into the
@@ -165,16 +192,47 @@ spec:
               drop: ["ALL"]
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          {{- if or .Values.persistence.enabled .Values.xjtag.enabled }}
           {{- if .Values.persistence.enabled }}
           # The root filesystem is read-only; uploaded engineering files live
           # on this volume instead.
+          {{- end }}
           volumeMounts:
+            {{- if .Values.persistence.enabled }}
             - name: engineering-files
               mountPath: {{ .Values.persistence.mountPath }}
+            {{- end }}
+            {{- if .Values.xjtag.enabled }}
+            # Projected SA token for the OpenBao kubernetes login (XJTAG pull).
+            - name: openbao-token
+              mountPath: /var/run/secrets/openbao
+              readOnly: true
+            # ADT Dev Registry Root CA, Quay's TLS issuer.
+            - name: quay-ca
+              mountPath: /etc/meridian/quay-ca
+              readOnly: true
+            {{- end }}
           {{- end }}
-      {{- if .Values.persistence.enabled }}
+      {{- if or .Values.persistence.enabled .Values.xjtag.enabled }}
       volumes:
+        {{- if .Values.persistence.enabled }}
         - name: engineering-files
           persistentVolumeClaim:
             claimName: {{ include "api.fullname" . }}-engineering-files
+        {{- end }}
+        {{- if .Values.xjtag.enabled }}
+        - name: openbao-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  audience: {{ .Values.xjtag.openbao.audience | quote }}
+                  expirationSeconds: {{ int .Values.xjtag.openbao.tokenExpirationSeconds }}
+                  path: token
+        - name: quay-ca
+          configMap:
+            name: {{ .Values.xjtag.quayCa.configMap }}
+            items:
+              - key: {{ .Values.xjtag.quayCa.key }}
+                path: ca.crt
+        {{- end }}
       {{- end }}

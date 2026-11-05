@@ -83,3 +83,40 @@ cadConversion:
   partNumberProperty: "PLM_PART_NUMBER"
   # ResourceQuota on Job objects in the namespace (converter + test runner).
   maxJobs: 30
+# XJTAG package pull from Quay (keyless). The api exchanges its projected
+# ServiceAccount token for an OpenBao client token (kubernetes auth), mints an
+# OIDC JWT, and trades that at Quay's robot federation endpoint for a pull
+# token on the org's robot. No static registry or GHES credential is mounted.
+# Off by default; while disabled nothing below renders.
+#
+# The OpenBao role binds the pod's ServiceAccount, which is
+# testRunner.serviceAccountName (meridian-test-launcher). If that name changes,
+# meridian-infra `var.meridian_api_service_account` must change with it, or the
+# OpenBao login fails.
+xjtag:
+  enabled: false
+  # Quay base URL (MERIDIAN_XJTAG_QUAY_URL).
+  quayUrl: https://quay.apps.cluster.adt.network
+  # Robot per Quay org; {org} is the lower-cased GHES repo owner.
+  pullRobotTemplate: "{org}+meridian_xjtag_pull"
+  openbao:
+    addr: http://openbao.openbao.svc:8200
+    role: meridian-xjtag-pull
+    # Audience and lifetime of the projected SA token mounted at
+    # /var/run/secrets/openbao/token. The audience must match the OpenBao
+    # role's bound audience. Kubelet rotates it at about 80% of its life.
+    audience: openbao
+    tokenExpirationSeconds: 600
+  # ConfigMap in the release namespace holding the ADT Dev Registry Root CA
+  # (Quay's issuer), mounted at /etc/meridian/quay-ca/ca.crt. Created
+  # out-of-band from openshift-config/registry-certs
+  # ["quay.apps.cluster.adt.network"].
+  quayCa:
+    configMap: meridian-quay-ca
+    key: ca.crt
+  # GHES REST base (MERIDIAN_XJTAG_GHES_API); empty leaves Meridian's default
+  # https://adt-git01.adt.network/api/v3.
+  ghesApi: ""
+  # Size cap per package blob (MERIDIAN_XJTAG_MAX_PACKAGE_BYTES); empty leaves
+  # Meridian's default.
+  maxPackageBytes: ""

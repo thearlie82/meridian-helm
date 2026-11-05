@@ -84,6 +84,61 @@ The chart ships no NetworkPolicy; if one is added that selects the api pods,
 allow ingress on TCP 8080 from pods labelled
 `app.kubernetes.io/name: meridian-cad-converter`.
 
+## XJTAG package pull from Quay (`api.xjtag`)
+
+```yaml
+api:
+  xjtag:
+    enabled: false                                 # default; nothing renders while off
+    quayUrl: https://quay.apps.cluster.adt.network
+    pullRobotTemplate: "{org}+meridian_xjtag_pull" # {org} = lower-cased GHES repo owner
+    openbao:
+      addr: http://openbao.openbao.svc:8200
+      role: meridian-xjtag-pull
+      audience: openbao                            # projected SA token audience
+      tokenExpirationSeconds: 600
+    quayCa:
+      configMap: meridian-quay-ca                  # ADT Dev Registry Root CA
+      key: ca.crt
+    ghesApi: ""                                    # empty = Meridian default
+    maxPackageBytes: ""                            # empty = Meridian default
+```
+
+Keyless: the api logs in to OpenBao (kubernetes auth) with a projected
+ServiceAccount token, mints an OIDC JWT, and exchanges it at Quay's robot
+federation endpoint for a pull token on `<org>+meridian_xjtag_pull`. No registry
+or GHES credential is mounted. When enabled the api Deployment gets:
+
+| Env | Value |
+| --- | --- |
+| `MERIDIAN_XJTAG_QUAY_URL` | `xjtag.quayUrl` |
+| `MERIDIAN_XJTAG_OPENBAO_ADDR` | `xjtag.openbao.addr` |
+| `MERIDIAN_XJTAG_OPENBAO_ROLE` | `xjtag.openbao.role` |
+| `MERIDIAN_XJTAG_SA_TOKEN_PATH` | `/var/run/secrets/openbao/token` |
+| `MERIDIAN_XJTAG_QUAY_CA_FILE` | `/etc/meridian/quay-ca/ca.crt` |
+| `MERIDIAN_XJTAG_PULL_ROBOT_TEMPLATE` | `xjtag.pullRobotTemplate` |
+| `MERIDIAN_XJTAG_MAX_PACKAGE_BYTES` | `xjtag.maxPackageBytes` (only when set) |
+| `MERIDIAN_XJTAG_GHES_API` | `xjtag.ghesApi` (only when set) |
+
+plus two read-only volumes: a projected `serviceAccountToken` (audience
+`xjtag.openbao.audience`, `expirationSeconds` `xjtag.openbao.tokenExpirationSeconds`)
+at `/var/run/secrets/openbao`, and the `xjtag.quayCa.configMap` ConfigMap (key
+`xjtag.quayCa.key` mounted as `ca.crt`) at `/etc/meridian/quay-ca`.
+
+Prerequisites, all out-of-band:
+
+- The OpenBao role `meridian-xjtag-pull` and the Quay orgs + federated pull
+  robots (meridian-infra Terraform). The role binds the pod's ServiceAccount,
+  `testRunner.serviceAccountName` (`meridian-test-launcher`); if that name
+  changes, meridian-infra `var.meridian_api_service_account` must change too.
+- The CA ConfigMap, copied from `openshift-config/registry-certs`:
+
+  ```sh
+  oc get configmap registry-certs -n openshift-config \
+    -o jsonpath='{.data.quay\.apps\.cluster\.adt\.network}' > ca.crt
+  oc create configmap meridian-quay-ca --from-file=ca.crt -n meridian
+  ```
+
 ## Local validation
 
 ```sh
