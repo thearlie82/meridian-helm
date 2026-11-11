@@ -139,6 +139,14 @@ Prerequisites, all out-of-band:
   oc create configmap meridian-quay-ca --from-file=ca.crt -n meridian
   ```
 
+## Web extra hosts
+
+`web.route.extraHosts` (default `[]`) is a list of `{ name, host }`. Each entry
+renders an additional Route `<web fullname>-<name>` for `host`, with the same
+path, target port and edge TLS as the main Route (one Service, several hostnames).
+TLS certs for extra hosts are applied out-of-band, like the main Route. An empty
+list renders only the single main Route.
+
 ## Local validation
 
 ```sh
