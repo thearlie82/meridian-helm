@@ -18,3 +18,7 @@ route:
   enabled: true
   host: meridian.apps-crc.testing
   path: /
+  # Additional hostnames served by the same service, one extra Route each
+  # (named <web fullname>-<name>; same path, target port and TLS as the main
+  # Route). Each entry: { name: string, host: string }. Empty = single Route.
+  extraHosts: []
