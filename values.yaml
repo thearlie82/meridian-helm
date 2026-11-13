@@ -52,6 +52,14 @@ api:
     limits:
       cpu: "1"
       memory: 512Mi
+  # Documents editing via the Collabora side-car (see collabora below). Empty
+  # url = Collabora off (no editing, no search-text extraction). Set
+  # url: http://collabora:9980 together with collabora.enabled.
+  documents:
+    collabora:
+      url: ""                               # MERIDIAN_COLLABORA_URL
+      publicBase: ""                        # MERIDIAN_COLLABORA_PUBLIC_BASE; empty = same origin (web nginx)
+      wopiSrcBase: http://meridian-api:8080 # MERIDIAN_WOPI_SRC_BASE (the api as Collabora reaches it)
   # The API is exposed directly for external automation (complete API surface).
   route:
     enabled: true
@@ -68,6 +76,12 @@ web:
     pullPolicy: Always
   # In-cluster upstream the SPA proxies /api/ to (the api Service).
   apiUpstream: http://meridian-api:8080
+  # Collabora upstream nginx proxies /browser/, /hosting/ and /cool/ to
+  # (COLLABORA_UPSTREAM). Set it to http://collabora:9980 only together with
+  # collabora.enabled: nginx refuses to start on a host that doesn't resolve,
+  # and the chart fails to render if it is set while Collabora is off. Empty
+  # leaves the image default (no DNS; Collabora's paths answer 502).
+  collaboraUpstream: ""
   resources:
     requests:
       cpu: 50m
@@ -80,3 +94,81 @@ web:
     enabled: true
     host: meridian.apps-crc.testing
     path: /
+
+# --- Collabora Online (CODE): the Documents editor side-car -----------------
+# Official collabora-online chart (vendored in charts/), aliased `collabora`.
+# The web tier proxies it same-origin; it reaches the API only through the
+# aliasgroup below (WOPI at /api/v1/internal/wopi). Turning it on takes three
+# values together: collabora.enabled, api.documents.collabora.url and
+# web.collaboraUpstream (see README "Collabora side-car").
+collabora:
+  enabled: false
+  # Service/Deployment name `collabora` (http://collabora:9980) and pod label
+  # app.kubernetes.io/name=collabora (the NetworkPolicy selects on it).
+  fullnameOverride: collabora
+  nameOverride: collabora
+  image:
+    repository: docker.io/collabora/code
+    tag: "26.04.6.1.1"
+  # Rendered by templates/collabora-serviceaccount.yaml (no token mounted).
+  serviceAccount:
+    create: false
+    name: meridian-collabora
+  # One replica: documents are not sharded across pods, so no session
+  # affinity is needed. The upstream default turns an HPA on (min 2).
+  replicaCount: 1
+  autoscaling:
+    enabled: false
+  collabora:
+    # The only WOPI host Collabora accepts.
+    aliasgroups:
+      - host: "http://meridian-api:8080"
+    # Per environment: TLS ends at the router, Collabora is framed only by the
+    # web origin, and POST/REST (convert-to) is limited to the pod network.
+    # admin_console off (also disables /cool/getMetrics).
+    extra_params: >-
+      --o:ssl.enable=false --o:ssl.termination=true
+      --o:admin_console.enable=false
+    # The public host the browser uses (the web Route host).
+    server_name: null
+    # Admin console is off (extra_params), so these are never used; the
+    # upstream chart still renders them into its Secret.
+    username: unused
+    password: unused
+  # OpenShift restricted-v2: the namespace assigns the UID (the image's 1001
+  # is ignored), no capabilities, no privilege escalation. Collabora then
+  # isolates its document processes with landlock instead of a chroot jail.
+  podSecurityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    runAsNonRoot: true
+    capabilities:
+      drop: ["ALL"]
+    seccompProfile:
+      type: RuntimeDefault
+  # /opt/cool/{child-roots,cache} are owned by 1001 in the image, so the
+  # assigned UID can't write them; give it emptyDirs (/tmp is one already).
+  extraVolumes:
+    - name: child-roots
+      emptyDir: {}
+    - name: cache
+      emptyDir: {}
+  extraVolumeMounts:
+    - name: child-roots
+      mountPath: /opt/cool/child-roots
+    - name: cache
+      mountPath: /opt/cool/cache
+  resources:
+    requests:
+      cpu: "1"
+      memory: 2Gi
+    limits:
+      cpu: "4"
+      memory: 6Gi
+  # The chart's own NetworkPolicy can't select pods for egress; this chart
+  # renders templates/collabora-networkpolicy.yaml instead.
+  networkPolicy:
+    enabled: false

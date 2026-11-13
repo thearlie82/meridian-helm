@@ -7,18 +7,20 @@ OpenShift and is driven by Argo CD from
 
 ## Layout
 
-Umbrella chart wrapping two subcharts, mirroring the fleet convention
+Umbrella chart wrapping two subcharts (plus the vendored Collabora chart), mirroring the fleet convention
 (`aras2dynamicsf-o_helm`):
 
 ```
-Chart.yaml                 umbrella (api + web deps)
+Chart.yaml                 umbrella (api + web + collabora deps)
 values.yaml                dev-safe defaults
 templates/
   namespace.yaml           the meridian namespace
   cnpg-cluster.yaml        CloudNativePG Cluster CR (Postgres)
+  collabora-*.yaml         Collabora NetworkPolicy + ServiceAccount (when enabled)
   _helpers.tpl / NOTES.txt
 charts/api/                Rust axum API (port 8080, /healthz, OpenAPI at /swagger-ui)
 charts/web/                React SPA behind nginx (port 8080, proxies /api/ to the api Service)
+charts/collabora-online-*.tgz  official Collabora Online chart, vendored (off by default)
 ```
 
 ## Database — CloudNativePG
@@ -139,11 +141,74 @@ Prerequisites, all out-of-band:
   oc create configmap meridian-quay-ca --from-file=ca.crt -n meridian
   ```
 
+## Collabora side-car (`collabora`)
+
+Collabora Online (CODE) edits Office files for Meridian Documents. It is the
+official [`collabora-online`](https://collaboraonline.github.io/online/) chart,
+vendored as `charts/collabora-online-1.3.8.tgz` (so Argo CD needs no access to
+the chart repo; `helm dependency update` refreshes it) and aliased `collabora`.
+**Off by default.** Turning it on takes three values together:
+
+```yaml
+collabora:
+  enabled: true
+  collabora:
+    server_name: meridian.example            # the web Route host
+    extra_params: >-
+      --o:ssl.enable=false --o:ssl.termination=true
+      --o:net.frame_ancestors=https://meridian.example
+      --o:net.post_allow.host[0]=<pod network CIDR>
+      --o:admin_console.enable=false
+api:
+  documents:
+    collabora:
+      url: http://collabora:9980             # MERIDIAN_COLLABORA_URL
+web:
+  collaboraUpstream: http://collabora:9980   # COLLABORA_UPSTREAM (nginx)
+```
+
+The chart **refuses to render** if `web.collaboraUpstream` or
+`api.documents.collabora.url` is set while `collabora.enabled` is false: the web
+tier's nginx resolves the upstream at start and would not start without the
+`collabora` Service.
+
+What renders when enabled:
+
+- Deployment/Service/ConfigMap/Secret `collabora` (port 9980) from the upstream
+  chart: 1 replica (its HPA is off), image `docker.io/collabora/code:26.04.6.1.1`,
+  requests 1 CPU / 2Gi, limits 4 CPU / 6Gi, aliasgroup `http://meridian-api:8080`
+  (the only WOPI host it accepts).
+- restricted-v2 securityContext (no UID set, all capabilities dropped, no
+  privilege escalation, RuntimeDefault seccomp). Without capabilities Collabora
+  isolates document processes with landlock instead of a chroot jail.
+  `/opt/cool/child-roots` and `/opt/cool/cache` are emptyDirs (the image owns
+  them as UID 1001).
+- ServiceAccount `meridian-collabora` with no token mounted.
+- NetworkPolicy `meridian-collabora`: ingress on 9980 only from the web and api
+  pods; egress only to the api pods on 8080 and to cluster DNS.
+- The admin Secret holds placeholder values: the admin console (and with it
+  `/cool/getMetrics`) is turned off in `extra_params`.
+
+The api Deployment gets:
+
+| Env | Value |
+| --- | --- |
+| `MERIDIAN_DOCUMENTS_FILE_ROOT` | `<persistence.mountPath>/documents` (whenever persistence is on) |
+| `MERIDIAN_COLLABORA_URL` | `api.documents.collabora.url` (only when set) |
+| `MERIDIAN_COLLABORA_PUBLIC_BASE` | `api.documents.collabora.publicBase` (empty = same origin) |
+| `MERIDIAN_WOPI_SRC_BASE` | `api.documents.collabora.wopiSrcBase` (`http://meridian-api:8080`) |
+
+The web Deployment gets `COLLABORA_UPSTREAM` = `web.collaboraUpstream` (only
+when set). Meridian web images that don't proxy Collabora ignore it; newer ones
+default it to an address that needs no DNS (Collabora's paths answer 502).
+
 ## Local validation
 
 ```sh
 helm lint .
 helm template meridian . --namespace meridian
+# with an environment's values, then schema-check the output:
+helm template meridian . --namespace meridian -f <env values.yaml> | kubeconform -summary -ignore-missing-schemas
 ```
 
 ## Images
