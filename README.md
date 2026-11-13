@@ -158,6 +158,7 @@ collabora:
       --o:ssl.enable=false --o:ssl.termination=true
       --o:net.frame_ancestors=https://meridian.example
       --o:net.post_allow.host[0]=<pod network CIDR>
+      --o:storage.wopi.alias_groups[@mode]=groups
       --o:admin_console.enable=false
 api:
   documents:
@@ -177,7 +178,14 @@ What renders when enabled:
 - Deployment/Service/ConfigMap/Secret `collabora` (port 9980) from the upstream
   chart: 1 replica (its HPA is off), image `docker.io/collabora/code:26.04.6.1.1`,
   requests 1 CPU / 2Gi, limits 4 CPU / 6Gi, aliasgroup `http://meridian-api:8080`
-  (the only WOPI host it accepts).
+  (the only WOPI host it accepts). This holds only with
+  `--o:storage.wopi.alias_groups[@mode]=groups` in `extra_params`. Keep it in
+  any override: the default mode, `first`, ignores the groups and trusts the
+  first host that connects.
+- `post_allow` limits Collabora's REST endpoints (convert-to, …) to client
+  IPs. Browser traffic all arrives from the web pods, so it can't separate
+  browsers. The web image's nginx allow-list (meridian `deploy/nginx.conf`)
+  is what keeps those endpoints off the public Route.
 - restricted-v2 securityContext (no UID set, all capabilities dropped, no
   privilege escalation, RuntimeDefault seccomp). Without capabilities Collabora
   isolates document processes with landlock instead of a chroot jail.
