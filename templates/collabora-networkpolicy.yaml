@@ -1,0 +1,65 @@
+{{- /*
+The web tier's nginx resolves COLLABORA_UPSTREAM at start and won't start if
+it doesn't resolve, so pointing it (or the api) at Collabora with Collabora
+off would take down the web tier: refuse to render instead.
+*/}}
+{{- if and (not .Values.collabora.enabled) (or .Values.web.collaboraUpstream .Values.api.documents.collabora.url) }}
+{{- fail "web.collaboraUpstream / api.documents.collabora.url are set but collabora.enabled is false" }}
+{{- end }}
+{{- if .Values.collabora.enabled }}
+# Collabora (Documents editor) opens untrusted Office files. Only the web
+# (nginx same-origin proxy) and api (discovery, convert-to) pods may reach it,
+# and it may reach only the api pods (WOPI, 8080) and cluster DNS: no
+# Postgres, OpenBao, kube API or internet.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: meridian-collabora
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "meridian.labels" . | nindent 4 }}
+    app.kubernetes.io/component: collabora
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: collabora
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: web
+              app.kubernetes.io/instance: {{ .Release.Name }}
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: api
+              app.kubernetes.io/instance: {{ .Release.Name }}
+      ports:
+        - protocol: TCP
+          port: 9980
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: api
+              app.kubernetes.io/instance: {{ .Release.Name }}
+      ports:
+        - protocol: TCP
+          port: 8080
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-dns
+      ports:
+        - protocol: UDP
+          port: 5353
+        - protocol: TCP
+          port: 5353
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- end }}

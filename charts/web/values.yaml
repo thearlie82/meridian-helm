@@ -7,6 +7,8 @@ image:
   tag: latest
   pullPolicy: Always
 apiUpstream: http://meridian-api:8080
+# Collabora upstream (COLLABORA_UPSTREAM); empty = the image default.
+collaboraUpstream: ""
 resources:
   requests:
     cpu: 50m

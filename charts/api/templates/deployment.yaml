@@ -170,6 +170,22 @@ spec:
             # Where the engineering file store (CAD models, step media) writes.
             - name: MERIDIAN_ENGINEERING_FILE_ROOT
               value: {{ .Values.persistence.mountPath | quote }}
+            # Documents file versions, on the same volume.
+            - name: MERIDIAN_DOCUMENTS_FILE_ROOT
+              value: "{{ .Values.persistence.mountPath }}/documents"
+            {{- end }}
+            {{- with .Values.documents.collabora }}
+            {{- if .url }}
+            # Collabora side-car (Documents editing and search text): the api
+            # calls it at url, the browser reaches it same-origin through the
+            # web tier, and it calls back to the api at wopiSrcBase.
+            - name: MERIDIAN_COLLABORA_URL
+              value: {{ .url | quote }}
+            - name: MERIDIAN_COLLABORA_PUBLIC_BASE
+              value: {{ .publicBase | quote }}
+            - name: MERIDIAN_WOPI_SRC_BASE
+              value: {{ .wopiSrcBase | quote }}
+            {{- end }}
             {{- end }}
           livenessProbe:
             httpGet:
