@@ -132,10 +132,14 @@ collabora:
     # aliasgroups above the only trusted WOPI hosts: the default mode
     # ("first") ignores them and trusts whichever host connects first, and
     # the aliasgroupN env doesn't switch it. admin_console off.
+    # enable_websocket_urp stays false (its default), set explicitly: UNO
+    # remote protocol over the editor WebSocket would bypass every WOPI flag.
+    # An environment that overrides extra_params must keep these lines.
     extra_params: >-
       --o:ssl.enable=false --o:ssl.termination=true
       --o:storage.wopi.alias_groups[@mode]=groups
       --o:admin_console.enable=false
+      --o:security.enable_websocket_urp=false
     # The public host the browser uses (the web Route host).
     server_name: null
     # Admin console is off (extra_params), so these are never used; the
