@@ -34,6 +34,13 @@ persistence:
   accessMode: ReadWriteOnce
   # Empty uses the cluster's default StorageClass.
   storageClass: ""
+# Documents editing via the Collabora side-car (umbrella `collabora`). Empty
+# url = Collabora off (no editing, no search-text extraction).
+documents:
+  collabora:
+    url: ""
+    publicBase: ""
+    wopiSrcBase: http://meridian-api:8080
 route:
   enabled: true
   host: meridian-api.apps-crc.testing

@@ -35,10 +35,17 @@ spec:
               protocol: TCP
           env:
             # Upstream the SPA proxies /api/ to. The nginx entrypoint runs
-            # envsubst over this at start (NGINX_ENVSUBST_FILTER=API_UPSTREAM,
-            # baked into the image).
+            # envsubst over this at start (NGINX_ENVSUBST_FILTER, baked into
+            # the image).
             - name: API_UPSTREAM
               value: {{ .Values.apiUpstream | quote }}
+            {{- with .Values.collaboraUpstream }}
+            # Collabora (/browser/, /hosting/, /cool/). Only with Collabora
+            # deployed: nginx won't start if this host doesn't resolve. Unset,
+            # the image default answers 502 on those paths.
+            - name: COLLABORA_UPSTREAM
+              value: {{ . | quote }}
+            {{- end }}
           livenessProbe:
             httpGet:
               path: /healthz
