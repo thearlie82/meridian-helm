@@ -151,6 +151,23 @@ spec:
             {{- end }}
             {{- end }}
             {{- end }}
+            {{- with .Values.commerce }}
+            {{- if .enabled }}
+            # Shopify shops: each shop's app credentials are read from OpenBao
+            # (kubernetes login with the projected SA token below). No static
+            # credential.
+            - name: MERIDIAN_COMMERCE_OPENBAO_ADDR
+              value: {{ .openbao.addr | quote }}
+            - name: MERIDIAN_COMMERCE_OPENBAO_ROLE
+              value: {{ .openbao.role | quote }}
+            - name: MERIDIAN_COMMERCE_SA_TOKEN_PATH
+              value: "/var/run/secrets/openbao/token"
+            {{- with .sweepSecs }}
+            - name: MERIDIAN_COMMERCE_SWEEP_SECS
+              value: {{ int . | quote }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
             {{- /* Additional secret-backed env vars (e.g. AWS creds for the
                    Bedrock assist backend). Each entry names a key that must
                    exist in `secretName`; values are never rendered into the
@@ -208,7 +225,7 @@ spec:
               drop: ["ALL"]
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- if or .Values.persistence.enabled .Values.xjtag.enabled }}
+          {{- if or .Values.persistence.enabled .Values.xjtag.enabled .Values.commerce.enabled }}
           {{- if .Values.persistence.enabled }}
           # The root filesystem is read-only; uploaded engineering files live
           # on this volume instead.
@@ -218,32 +235,40 @@ spec:
             - name: engineering-files
               mountPath: {{ .Values.persistence.mountPath }}
             {{- end }}
-            {{- if .Values.xjtag.enabled }}
-            # Projected SA token for the OpenBao kubernetes login (XJTAG pull).
+            {{- if or .Values.xjtag.enabled .Values.commerce.enabled }}
+            # Projected SA token for the OpenBao kubernetes login (XJTAG pull,
+            # Commerce shop credentials).
             - name: openbao-token
               mountPath: /var/run/secrets/openbao
               readOnly: true
+            {{- end }}
+            {{- if .Values.xjtag.enabled }}
             # ADT Dev Registry Root CA, Quay's TLS issuer.
             - name: quay-ca
               mountPath: /etc/meridian/quay-ca
               readOnly: true
             {{- end }}
           {{- end }}
-      {{- if or .Values.persistence.enabled .Values.xjtag.enabled }}
+      {{- if or .Values.persistence.enabled .Values.xjtag.enabled .Values.commerce.enabled }}
       volumes:
         {{- if .Values.persistence.enabled }}
         - name: engineering-files
           persistentVolumeClaim:
             claimName: {{ include "api.fullname" . }}-engineering-files
         {{- end }}
-        {{- if .Values.xjtag.enabled }}
+        {{- if or .Values.xjtag.enabled .Values.commerce.enabled }}
+        {{- /* One token serves both: XJTAG's settings win when it's on. Both
+               roles bind audience "openbao". */}}
+        {{- $bao := ternary .Values.xjtag.openbao .Values.commerce.openbao .Values.xjtag.enabled }}
         - name: openbao-token
           projected:
             sources:
               - serviceAccountToken:
-                  audience: {{ .Values.xjtag.openbao.audience | quote }}
-                  expirationSeconds: {{ int .Values.xjtag.openbao.tokenExpirationSeconds }}
+                  audience: {{ $bao.audience | quote }}
+                  expirationSeconds: {{ int $bao.tokenExpirationSeconds }}
                   path: token
+        {{- end }}
+        {{- if .Values.xjtag.enabled }}
         - name: quay-ca
           configMap:
             name: {{ .Values.xjtag.quayCa.configMap }}
