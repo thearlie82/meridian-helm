@@ -151,6 +151,12 @@ spec:
             {{- end }}
             {{- end }}
             {{- end }}
+            {{- if .Values.trustedCa.enabled }}
+            # The cluster's trusted CA bundle (ADT internal CA), for fetching the
+            # GHES OIDC JWKS behind it.
+            - name: MERIDIAN_GHES_OIDC_CA_FILE
+              value: "/etc/meridian/trusted-ca/ca-bundle.crt"
+            {{- end }}
             {{- with .Values.commerce }}
             {{- if .enabled }}
             # Shopify shops: each shop's app credentials are read from OpenBao
@@ -225,7 +231,7 @@ spec:
               drop: ["ALL"]
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- if or .Values.persistence.enabled .Values.xjtag.enabled .Values.commerce.enabled }}
+          {{- if or .Values.persistence.enabled .Values.xjtag.enabled .Values.commerce.enabled .Values.trustedCa.enabled }}
           {{- if .Values.persistence.enabled }}
           # The root filesystem is read-only; uploaded engineering files live
           # on this volume instead.
@@ -248,8 +254,13 @@ spec:
               mountPath: /etc/meridian/quay-ca
               readOnly: true
             {{- end }}
+            {{- if .Values.trustedCa.enabled }}
+            - name: trusted-ca
+              mountPath: /etc/meridian/trusted-ca
+              readOnly: true
+            {{- end }}
           {{- end }}
-      {{- if or .Values.persistence.enabled .Values.xjtag.enabled .Values.commerce.enabled }}
+      {{- if or .Values.persistence.enabled .Values.xjtag.enabled .Values.commerce.enabled .Values.trustedCa.enabled }}
       volumes:
         {{- if .Values.persistence.enabled }}
         - name: engineering-files
@@ -275,5 +286,13 @@ spec:
             items:
               - key: {{ .Values.xjtag.quayCa.key }}
                 path: ca.crt
+        {{- end }}
+        {{- if .Values.trustedCa.enabled }}
+        - name: trusted-ca
+          configMap:
+            name: {{ include "api.fullname" . }}-trusted-ca
+            items:
+              - key: ca-bundle.crt
+                path: ca-bundle.crt
         {{- end }}
       {{- end }}
