@@ -127,3 +127,20 @@ xjtag:
   # Size cap per package blob (MERIDIAN_XJTAG_MAX_PACKAGE_BYTES); empty leaves
   # Meridian's default.
   maxPackageBytes: ""
+# Projected ServiceAccount token for the api's OpenBao kubernetes logins,
+# mounted at /var/run/secrets/openbao/token (the same mount xjtag uses; on
+# with either). With it the api gets the Documents key service env
+# (MERIDIAN_KEYS_*: Transit encryption keys and webhook signing keys).
+# The OpenBao role (keys.openbaoRole) binds the api's ServiceAccount, which is
+# testRunner.serviceAccountName (meridian-test-launcher); meridian-infra
+# keys/ `var.meridian_service_accounts` must list it. Rendering fails if the
+# api would run under the namespace's default ServiceAccount.
+openbaoToken:
+  enabled: false
+  # Must match the OpenBao role's bound audience (and xjtag.openbao.audience
+  # when both are on: one token serves both).
+  audience: openbao
+  tokenExpirationSeconds: 600
+keys:
+  openbaoAddr: http://openbao.openbao.svc:8200
+  openbaoRole: meridian-keys

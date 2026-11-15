@@ -9,6 +9,8 @@ image:
 apiUpstream: http://meridian-api:8080
 # Collabora upstream (COLLABORA_UPSTREAM); empty = the image default.
 collaboraUpstream: ""
+# Realtime gateway upstream (RT_UPSTREAM); empty = the image default.
+rtUpstream: ""
 resources:
   requests:
     cpu: 50m

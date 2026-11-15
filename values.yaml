@@ -60,6 +60,16 @@ api:
       url: ""                               # MERIDIAN_COLLABORA_URL
       publicBase: ""                        # MERIDIAN_COLLABORA_PUBLIC_BASE; empty = same origin (web nginx)
       wopiSrcBase: http://meridian-api:8080 # MERIDIAN_WOPI_SRC_BASE (the api as Collabora reaches it)
+  # Projected ServiceAccount token (aud openbao) for the api's OpenBao
+  # kubernetes logins: Documents encryption keys (MERIDIAN_KEYS_*) and
+  # webhook signing. Independent of xjtag (which mounts the same token).
+  # The OpenBao role meridian-keys binds the api's ServiceAccount
+  # (testRunner.serviceAccountName); see the api subchart values.
+  openbaoToken:
+    enabled: false
+  keys:
+    openbaoAddr: http://openbao.openbao.svc:8200
+    openbaoRole: meridian-keys
   # The API is exposed directly for external automation (complete API surface).
   route:
     enabled: true
@@ -82,6 +92,11 @@ web:
   # and the chart fails to render if it is set while Collabora is off. Empty
   # leaves the image default (no DNS; Collabora's paths answer 502).
   collaboraUpstream: ""
+  # Realtime gateway upstream nginx proxies /rt to (RT_UPSTREAM). Set it to
+  # http://meridian-realtime:8080 only together with realtime.enabled (the
+  # chart refuses to render otherwise). Empty leaves the image default (no
+  # DNS; /rt answers 502).
+  rtUpstream: ""
   resources:
     requests:
       cpu: 50m
@@ -183,3 +198,89 @@ collabora:
   # renders templates/collabora-networkpolicy.yaml instead.
   networkPolicy:
     enabled: false
+
+# --- NATS: the realtime gateway's internal fan-out bus ----------------------
+# Official nats chart (vendored in charts/), aliased `nats`. NATS core only
+# (no JetStream, no cluster): presence fan-out between realtime replicas,
+# nothing stored. Browsers never reach it; templates/nats-networkpolicy.yaml
+# admits only the api and realtime pods. Turn it on together with
+# realtime.enabled (see README "Realtime gateway and NATS").
+nats:
+  enabled: false
+  # Service/StatefulSet `nats` (nats://nats:4222, MERIDIAN_NATS_URL's
+  # default) and pod label app.kubernetes.io/name=nats.
+  fullnameOverride: nats
+  nameOverride: nats
+  config:
+    cluster:
+      enabled: false
+    jetstream:
+      enabled: false
+    # The probes use the monitor port (8222); the Service doesn't expose it.
+    monitor:
+      enabled: true
+  container:
+    image:
+      repository: nats
+      registry: docker.io
+      tag: 2.15.2-alpine
+    # OpenShift restricted-v2: the namespace assigns the UID.
+    merge:
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+        seccompProfile:
+          type: RuntimeDefault
+      resources:
+        requests:
+          cpu: 20m
+          memory: 32Mi
+        limits:
+          cpu: 500m
+          memory: 256Mi
+  podTemplate:
+    merge:
+      spec:
+        # NATS calls no Kubernetes API.
+        automountServiceAccountToken: false
+        securityContext:
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+  # Config never changes at runtime: no reloader side-car.
+  reloader:
+    enabled: false
+  # No nats-box (a debug client Deployment).
+  natsBox:
+    enabled: false
+  # The meridian Argo CD project doesn't allow group `policy`, and dev is one
+  # replica on one node: no PodDisruptionBudget.
+  podDisruptionBudget:
+    enabled: false
+  # No PodMonitor (group monitoring.coreos.com is not allowed either).
+  promExporter:
+    enabled: false
+    podMonitor:
+      enabled: false
+
+# --- Realtime gateway (meridian-realtime) -----------------------------------
+# Browser WebSocket sessions at /rt (the web nginx proxies it same-origin;
+# set web.rtUpstream). Runs from the api image with command
+# /app/meridian-realtime, the api's DATABASE_URL and JWT secret, and NATS at
+# natsUrl. Needs nats.enabled (the chart refuses to render otherwise).
+realtime:
+  enabled: false
+  replicaCount: 1
+  natsUrl: nats://nats:4222
+  env:
+    RUST_LOG: "info"
+  resources:
+    requests:
+      cpu: 20m
+      memory: 32Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi

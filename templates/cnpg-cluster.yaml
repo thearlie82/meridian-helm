@@ -15,6 +15,13 @@ spec:
   {{- with .Values.cnpg.imageName }}
   imageName: {{ . }}
   {{- end }}
+  postgresql:
+    parameters:
+      # Never log bind parameters (statement and error logs): Documents binds
+      # plaintext search chunks into to_tsvector, so a logged parameter
+      # would write file contents to the Postgres log.
+      log_parameter_max_length: "0"
+      log_parameter_max_length_on_error: "0"
   bootstrap:
     initdb:
       database: {{ .Values.cnpg.database }}
