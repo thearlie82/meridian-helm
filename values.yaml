@@ -269,12 +269,16 @@ nats:
 # --- Realtime gateway (meridian-realtime) -----------------------------------
 # Browser WebSocket sessions at /rt (the web nginx proxies it same-origin;
 # set web.rtUpstream). Runs from the api image with command
-# /app/meridian-realtime, the api's DATABASE_URL and JWT secret, and NATS at
-# natsUrl. Needs nats.enabled (the chart refuses to render otherwise).
+# /app/meridian-realtime and NATS at natsUrl. It holds no secret and no
+# database access: tickets and access are checked by the api at apiUrl
+# (cluster-only /api/v1/internal/realtime). Needs nats.enabled (the chart
+# refuses to render otherwise).
 realtime:
   enabled: false
   replicaCount: 1
   natsUrl: nats://nats:4222
+  # The api Service (MERIDIAN_REALTIME_API_URL).
+  apiUrl: http://meridian-api:8080
   env:
     RUST_LOG: "info"
   resources:

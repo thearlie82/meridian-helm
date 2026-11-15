@@ -256,12 +256,19 @@ without `realtime` (nginx would not start on an unresolvable upstream).
   NetworkPolicy `meridian-nats`: ingress on 4222 only from the api and
   realtime pods; no egress.
 - `realtime`: Deployment/Service `meridian-realtime` (port 8080, `/healthz`
-  probes) from the **api image** with command `/app/meridian-realtime`, the
-  api's `DATABASE_URL` and `MERIDIAN_JWT_SECRET`, and `MERIDIAN_NATS_URL`
-  (`realtime.natsUrl`). ServiceAccount `meridian-realtime` with no token.
+  probes) from the **api image** with command `/app/meridian-realtime`,
+  `MERIDIAN_REALTIME_API_URL` (`realtime.apiUrl`, default
+  `http://meridian-api:8080`) and `MERIDIAN_NATS_URL` (`realtime.natsUrl`).
+  It holds **no secret and no database access**: no `DATABASE_URL`, no
+  `MERIDIAN_JWT_SECRET`. The api redeems tickets and checks subscribes on its
+  cluster-only `/api/v1/internal/realtime/*` endpoints (the web nginx 404s
+  `/api/v1/internal/`). ServiceAccount `meridian-realtime` with no token.
   NetworkPolicy `meridian-realtime`: ingress only from the web pods; egress
-  only to Postgres (5432), NATS (4222) and cluster DNS. Needs an api image
-  that contains `/app/meridian-realtime`.
+  only to the api pods (8080), NATS (4222) and cluster DNS. The api pods have
+  no ingress NetworkPolicy (the Routes, web, Collabora and the converter all
+  reach them), so the gateway needs no api-side rule; adding an api policy
+  must keep all of those. Needs an api image that contains
+  `/app/meridian-realtime` and the internal realtime endpoints.
 
 ## Local validation
 
