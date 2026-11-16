@@ -54,6 +54,15 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.database.secretName }}
                   key: {{ .Values.database.uriKey }}
+            {{- with .Values.database.viewerSecretName }}
+            # The DB viewer's own login (meridian_dbviewer), never the app's:
+            # without it the DB viewer answers 503.
+            - name: MERIDIAN_DBVIEWER_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . }}
+                  key: {{ $.Values.database.viewerUriKey }}
+            {{- end }}
             # JWT signing secret (created out-of-band).
             - name: MERIDIAN_JWT_SECRET
               valueFrom:

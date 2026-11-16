@@ -22,6 +22,28 @@ spec:
       # would write file contents to the Postgres log.
       log_parameter_max_length: "0"
       log_parameter_max_length_on_error: "0"
+  {{- if .Values.cnpg.dbViewer.enabled }}
+  # The DB viewer's own login (Meridian DEPLOY.md 16.2): a plain LOGIN role,
+  # a member of nothing (the api refuses any membership either way), no
+  # CREATEDB/CREATEROLE/BYPASSRLS/REPLICATION. The api's startup grants it
+  # SELECT on its allowlist and sets its read-only session defaults.
+  managed:
+    roles:
+      - name: meridian_dbviewer
+        ensure: present
+        comment: Meridian DB viewer (read-only, allowlisted tables)
+        login: true
+        inherit: false
+        superuser: false
+        createdb: false
+        createrole: false
+        replication: false
+        bypassrls: false
+        connectionLimit: {{ .Values.cnpg.dbViewer.connectionLimit }}
+        inRoles: []
+        passwordSecret:
+          name: {{ .Values.cnpg.clusterName }}-dbviewer
+  {{- end }}
   bootstrap:
     initdb:
       database: {{ .Values.cnpg.database }}

@@ -27,6 +27,12 @@ cnpg:
   # initdb database + owner. The `uri` in <clusterName>-app targets this db.
   database: meridian
   owner: meridian
+  # The DB viewer's own Postgres login (managed role meridian_dbviewer and the
+  # generated Secret <clusterName>-dbviewer; Meridian DEPLOY.md 16.2). Off:
+  # the DB viewer answers 503.
+  dbViewer:
+    enabled: false
+    connectionLimit: 8
 
 # --- API (Rust / axum) ------------------------------------------------------
 api:
@@ -42,6 +48,10 @@ api:
   database:
     secretName: meridian-pg-app
     uriKey: uri
+    # The DB viewer's connection string (MERIDIAN_DBVIEWER_DATABASE_URL), from
+    # the Secret cnpg.dbViewer creates. Empty: not set (the DB viewer is 503).
+    viewerSecretName: ""
+    viewerUriKey: uri
   env:
     RUST_LOG: "info"
     MERIDIAN_SEED: "false"

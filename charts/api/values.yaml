@@ -14,6 +14,9 @@ secretEnv: []
 database:
   secretName: meridian-pg-app
   uriKey: uri
+  # The DB viewer's own login (MERIDIAN_DBVIEWER_DATABASE_URL); empty = unset.
+  viewerSecretName: ""
+  viewerUriKey: uri
 env:
   RUST_LOG: "info"
   MERIDIAN_SEED: "false"
