@@ -17,6 +17,9 @@ database:
   # The DB viewer's own login (MERIDIAN_DBVIEWER_DATABASE_URL); empty = unset.
   viewerSecretName: ""
   viewerUriKey: uri
+# MERIDIAN_ENV (always rendered): `production` refuses the dev-only
+# switches at startup; a dev cluster sets `dev`. Not settable under `env`.
+meridianEnv: production
 env:
   RUST_LOG: "info"
   MERIDIAN_SEED: "false"

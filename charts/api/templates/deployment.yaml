@@ -1,4 +1,7 @@
 {{- $openbaoToken := or .Values.xjtag.enabled .Values.openbaoToken.enabled }}
+{{- if hasKey .Values.env "MERIDIAN_ENV" }}
+{{- fail "api.env.MERIDIAN_ENV is set: use api.meridianEnv (the chart sets MERIDIAN_ENV itself)" }}
+{{- end }}
 {{- if and .Values.openbaoToken.enabled (not (or .Values.testRunner.enabled .Values.cadConversion.enabled)) }}
 {{- fail "api.openbaoToken.enabled needs the api ServiceAccount (testRunner.enabled or cadConversion.enabled): the OpenBao role binds testRunner.serviceAccountName, not the default ServiceAccount" }}
 {{- end }}
@@ -63,6 +66,11 @@ spec:
                   name: {{ . }}
                   key: {{ $.Values.database.viewerUriKey }}
             {{- end }}
+            # The deployment's environment, always set (Meridian DEPLOY.md
+            # "MERIDIAN_ENV"): `production` refuses the dev-only switches at
+            # startup and keeps an unset MERIDIAN_SEED from seeding.
+            - name: MERIDIAN_ENV
+              value: {{ required "api.meridianEnv must be set (production, or dev on a dev cluster)" .Values.meridianEnv | quote }}
             # JWT signing secret (created out-of-band).
             - name: MERIDIAN_JWT_SECRET
               valueFrom:

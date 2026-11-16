@@ -52,6 +52,9 @@ api:
     # the Secret cnpg.dbViewer creates. Empty: not set (the DB viewer is 503).
     viewerSecretName: ""
     viewerUriKey: uri
+  # MERIDIAN_ENV (always rendered): `production` refuses the dev-only
+  # switches at startup; a dev cluster sets `dev`. Not settable under `env`.
+  meridianEnv: production
   env:
     RUST_LOG: "info"
     MERIDIAN_SEED: "false"
