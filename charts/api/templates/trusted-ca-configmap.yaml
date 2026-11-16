@@ -1,0 +1,12 @@
+{{- if .Values.trustedCa.enabled }}
+# OpenShift's network operator fills `data.ca-bundle.crt` with the cluster's
+# trusted CA bundle (proxy trustedCA, which holds the ADT internal CA). The
+# chart leaves `data` out so a sync never clears what the operator injected.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "api.fullname" . }}-trusted-ca
+  labels:
+    {{- include "api.labels" . | nindent 4 }}
+    config.openshift.io/inject-trusted-cabundle: "true"
+{{- end }}
