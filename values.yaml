@@ -33,6 +33,12 @@ cnpg:
   dbViewer:
     enabled: false
     connectionLimit: 8
+  # The audit tables' owner (meridian_audit, NOLOGIN) and the migration Job's
+  # login (meridian_migrator, Secret <clusterName>-migrator generated in the
+  # cluster; Meridian DEPLOY.md 17). Needed by the audit migrations.
+  auditRoles:
+    enabled: false
+    migratorConnectionLimit: 2
 
 # --- API (Rust / axum) ------------------------------------------------------
 api:
@@ -52,6 +58,16 @@ api:
     # the Secret cnpg.dbViewer creates. Empty: not set (the DB viewer is 503).
     viewerSecretName: ""
     viewerUriKey: uri
+    # The migration Job's connection string (MERIDIAN_MIGRATOR_DATABASE_URL),
+    # from the Secret cnpg.auditRoles creates.
+    migratorSecretName: ""
+    migratorUriKey: uri
+  # `meridian-api migrate` as meridian_migrator before each rollout (DEPLOY.md
+  # 17): needs cnpg.auditRoles and database.migratorSecretName.
+  migrationJob:
+    enabled: false
+    backoffLimit: 10
+    activeDeadlineSeconds: 1800
   # MERIDIAN_ENV (always rendered): `production` refuses the dev-only
   # switches at startup; a dev cluster sets `dev`. Not settable under `env`.
   meridianEnv: production
