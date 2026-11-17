@@ -7,20 +7,23 @@ OpenShift and is driven by Argo CD from
 
 ## Layout
 
-Umbrella chart wrapping two subcharts (plus the vendored Collabora chart), mirroring the fleet convention
+Umbrella chart wrapping two subcharts (plus the vendored Collabora and NATS charts), mirroring the fleet convention
 (`aras2dynamicsf-o_helm`):
 
 ```
-Chart.yaml                 umbrella (api + web + collabora deps)
+Chart.yaml                 umbrella (api + web + collabora + nats deps)
 values.yaml                dev-safe defaults
 templates/
   namespace.yaml           the meridian namespace
   cnpg-cluster.yaml        CloudNativePG Cluster CR (Postgres)
   collabora-*.yaml         Collabora NetworkPolicy + ServiceAccount (when enabled)
+  realtime.yaml            meridian-realtime Deployment/Service/SA/NetworkPolicy (when enabled)
+  nats-networkpolicy.yaml  NATS NetworkPolicy (when enabled)
   _helpers.tpl / NOTES.txt
 charts/api/                Rust axum API (port 8080, /healthz, OpenAPI at /swagger-ui)
 charts/web/                React SPA behind nginx (port 8080, proxies /api/ to the api Service)
 charts/collabora-online-*.tgz  official Collabora Online chart, vendored (off by default)
+charts/nats-*.tgz          official NATS chart, vendored (off by default)
 ```
 
 ## Database — CloudNativePG
@@ -30,6 +33,10 @@ pattern, same as `coder`). The chart renders a `postgresql.cnpg.io/v1 Cluster`;
 the operator then publishes a Secret named `<clusterName>-app` whose `uri` key is
 a ready-to-use connection string. The API's `DATABASE_URL` is wired to that key.
 The API applies its own SQL migrations at startup.
+
+The Cluster sets `log_parameter_max_length` and
+`log_parameter_max_length_on_error` to `0`: bind parameters are never logged
+(Documents binds plaintext search chunks into `to_tsvector`).
 
 > Argo CD must sync this chart with **ServerSideApply=true** — the CNPG CRD
 > schema is large and exceeds the client-side apply annotation limit.
@@ -232,6 +239,59 @@ The api Deployment gets:
 The web Deployment gets `COLLABORA_UPSTREAM` = `web.collaboraUpstream` (only
 when set). Meridian web images that don't proxy Collabora ignore it; newer ones
 default it to an address that needs no DNS (Collabora's paths answer 502).
+
+## OpenBao token and the key service (`api.openbaoToken`)
+
+`api.openbaoToken.enabled` mounts a projected ServiceAccount token (audience
+`openbao`, 600 s) at `/var/run/secrets/openbao/token` and sets
+`MERIDIAN_KEYS_OPENBAO_ADDR` (`api.keys.openbaoAddr`),
+`MERIDIAN_KEYS_OPENBAO_ROLE` (`api.keys.openbaoRole`, `meridian-keys`) and
+`MERIDIAN_KEYS_SA_TOKEN_PATH`: Documents encryption (OpenBao Transit) and
+webhook signing. It is independent of `api.xjtag.enabled`, which mounts the
+same token; with both on, one token serves both and their audiences must match.
+The OpenBao role binds the api's ServiceAccount (`testRunner.serviceAccountName`,
+meridian-infra `keys/`): the chart refuses to render when the api would run
+under the default ServiceAccount.
+
+## Realtime gateway and NATS (`realtime`, `nats`)
+
+`meridian-realtime` holds browser WebSocket sessions at `/rt` (Documents
+presence) and fans out between replicas over NATS core. Off by default; turn
+on together:
+
+```yaml
+nats:
+  enabled: true
+realtime:
+  enabled: true
+web:
+  rtUpstream: http://meridian-realtime:8080   # RT_UPSTREAM (nginx)
+```
+
+The chart refuses to render `realtime` without `nats`, or `web.rtUpstream`
+without `realtime` (nginx would not start on an unresolvable upstream).
+
+- `nats`: the official chart, vendored as `charts/nats-2.15.2.tgz`, aliased
+  `nats`: StatefulSet/Service `nats` (`nats://nats:4222`), 1 replica, no
+  JetStream, no cluster, no reloader, no nats-box, no PodDisruptionBudget (the
+  meridian Argo project doesn't allow group `policy`) and no PodMonitor.
+  restricted-v2 securityContext, read-only root filesystem, no SA token.
+  NetworkPolicy `meridian-nats`: ingress on 4222 only from the api and
+  realtime pods; no egress.
+- `realtime`: Deployment/Service `meridian-realtime` (port 8080, `/healthz`
+  probes) from the **api image** with command `/app/meridian-realtime`,
+  `MERIDIAN_REALTIME_API_URL` (`realtime.apiUrl`, default
+  `http://meridian-api:8080`) and `MERIDIAN_NATS_URL` (`realtime.natsUrl`).
+  It holds **no secret and no database access**: no `DATABASE_URL`, no
+  `MERIDIAN_JWT_SECRET`. The api redeems tickets and checks subscribes on its
+  cluster-only `/api/v1/internal/realtime/*` endpoints (the web nginx 404s
+  `/api/v1/internal/`). ServiceAccount `meridian-realtime` with no token.
+  NetworkPolicy `meridian-realtime`: ingress only from the web pods; egress
+  only to the api pods (8080), NATS (4222) and cluster DNS. The api pods have
+  no ingress NetworkPolicy (the Routes, web, Collabora and the converter all
+  reach them), so the gateway needs no api-side rule; adding an api policy
+  must keep all of those. Needs an api image that contains
+  `/app/meridian-realtime` and the internal realtime endpoints.
 
 ## Local validation
 

@@ -1,0 +1,179 @@
+{{- /*
+The web tier's nginx resolves RT_UPSTREAM at start and won't start if it
+doesn't resolve, and the gateway answers 503 on /rt without NATS: refuse to
+render either half-configuration.
+*/}}
+{{- if and (not .Values.realtime.enabled) .Values.web.rtUpstream }}
+{{- fail "web.rtUpstream is set but realtime.enabled is false" }}
+{{- end }}
+{{- if and .Values.realtime.enabled (not .Values.nats.enabled) }}
+{{- fail "realtime.enabled needs nats.enabled (the gateway's bus)" }}
+{{- end }}
+{{- if .Values.realtime.enabled }}
+# meridian-realtime: the /rt WebSocket gateway (Documents presence). The api
+# image with another command. It holds no secret and no database access: the
+# api redeems tickets and checks subscribes on its cluster-only
+# /api/v1/internal/realtime endpoints (MERIDIAN_REALTIME_API_URL). It fans out
+# over NATS.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: meridian-realtime
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "meridian.labels" . | nindent 4 }}
+    app.kubernetes.io/component: realtime
+# The gateway calls no Kubernetes API.
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: meridian-realtime
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "meridian.labels" . | nindent 4 }}
+    app.kubernetes.io/name: realtime
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: realtime
+spec:
+  replicas: {{ .Values.realtime.replicaCount }}
+  revisionHistoryLimit: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: realtime
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: realtime
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: meridian-realtime
+      automountServiceAccountToken: false
+      # OpenShift restricted-v2: the namespace assigns UID/GID/fsGroup.
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: realtime
+          image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
+          imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+          command: ["/app/meridian-realtime"]
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: MERIDIAN_REALTIME_API_URL
+              value: {{ .Values.realtime.apiUrl | quote }}
+            - name: MERIDIAN_NATS_URL
+              value: {{ .Values.realtime.natsUrl | quote }}
+            {{- range $key, $value := .Values.realtime.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            {{- toYaml .Values.realtime.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: meridian-realtime
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "meridian.labels" . | nindent 4 }}
+    app.kubernetes.io/component: realtime
+spec:
+  selector:
+    app.kubernetes.io/name: realtime
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+---
+# Only the web pods (nginx, /rt) reach the gateway; it reaches only the api
+# (8080: ticket redemption and subscribe checks), NATS and cluster DNS. No
+# Postgres: the gateway has no database access.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: meridian-realtime
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "meridian.labels" . | nindent 4 }}
+    app.kubernetes.io/component: realtime
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: realtime
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: web
+              app.kubernetes.io/instance: {{ .Release.Name }}
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: api
+              app.kubernetes.io/instance: {{ .Release.Name }}
+      ports:
+        - protocol: TCP
+          port: 8080
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: nats
+              app.kubernetes.io/instance: {{ .Release.Name }}
+      ports:
+        - protocol: TCP
+          port: 4222
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-dns
+      ports:
+        - protocol: UDP
+          port: 5353
+        - protocol: TCP
+          port: 5353
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- end }}

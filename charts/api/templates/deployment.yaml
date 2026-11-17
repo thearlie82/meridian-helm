@@ -1,3 +1,13 @@
+{{- $openbaoToken := or .Values.xjtag.enabled .Values.commerce.enabled .Values.openbaoToken.enabled }}
+{{- if hasKey .Values.env "MERIDIAN_ENV" }}
+{{- fail "api.env.MERIDIAN_ENV is set: use api.meridianEnv (the chart sets MERIDIAN_ENV itself)" }}
+{{- end }}
+{{- if and .Values.openbaoToken.enabled (not (or .Values.testRunner.enabled .Values.cadConversion.enabled)) }}
+{{- fail "api.openbaoToken.enabled needs the api ServiceAccount (testRunner.enabled or cadConversion.enabled): the OpenBao role binds testRunner.serviceAccountName, not the default ServiceAccount" }}
+{{- end }}
+{{- if and .Values.xjtag.enabled .Values.openbaoToken.enabled (ne .Values.xjtag.openbao.audience .Values.openbaoToken.audience) }}
+{{- fail "api.xjtag.openbao.audience and api.openbaoToken.audience differ, but one projected token serves both" }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -47,6 +57,20 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.database.secretName }}
                   key: {{ .Values.database.uriKey }}
+            {{- with .Values.database.viewerSecretName }}
+            # The DB viewer's own login (meridian_dbviewer), never the app's:
+            # without it the DB viewer answers 503.
+            - name: MERIDIAN_DBVIEWER_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . }}
+                  key: {{ $.Values.database.viewerUriKey }}
+            {{- end }}
+            # The deployment's environment, always set (Meridian DEPLOY.md
+            # "MERIDIAN_ENV"): `production` refuses the dev-only switches at
+            # startup and keeps an unset MERIDIAN_SEED from seeding.
+            - name: MERIDIAN_ENV
+              value: {{ required "api.meridianEnv must be set (production, or dev on a dev cluster)" .Values.meridianEnv | quote }}
             # JWT signing secret (created out-of-band).
             - name: MERIDIAN_JWT_SECRET
               valueFrom:
@@ -123,6 +147,16 @@ spec:
                   key: client_secret
                   optional: true
             {{- end }}
+            {{- end }}
+            {{- if .Values.openbaoToken.enabled }}
+            # Documents key service (OpenBao Transit) and webhook signing: the
+            # projected SA token below logs in to OpenBao role openbaoRole.
+            - name: MERIDIAN_KEYS_OPENBAO_ADDR
+              value: {{ .Values.keys.openbaoAddr | quote }}
+            - name: MERIDIAN_KEYS_OPENBAO_ROLE
+              value: {{ .Values.keys.openbaoRole | quote }}
+            - name: MERIDIAN_KEYS_SA_TOKEN_PATH
+              value: "/var/run/secrets/openbao/token"
             {{- end }}
             {{- with .Values.xjtag }}
             {{- if .enabled }}
@@ -231,7 +265,7 @@ spec:
               drop: ["ALL"]
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- if or .Values.persistence.enabled .Values.xjtag.enabled .Values.commerce.enabled .Values.trustedCa.enabled }}
+          {{- if or .Values.persistence.enabled $openbaoToken .Values.trustedCa.enabled }}
           {{- if .Values.persistence.enabled }}
           # The root filesystem is read-only; uploaded engineering files live
           # on this volume instead.
@@ -241,9 +275,9 @@ spec:
             - name: engineering-files
               mountPath: {{ .Values.persistence.mountPath }}
             {{- end }}
-            {{- if or .Values.xjtag.enabled .Values.commerce.enabled }}
-            # Projected SA token for the OpenBao kubernetes login (XJTAG pull,
-            # Commerce shop credentials).
+            {{- if $openbaoToken }}
+            # Projected SA token for the OpenBao kubernetes logins (XJTAG pull,
+            # Commerce shop credentials, Documents keys).
             - name: openbao-token
               mountPath: /var/run/secrets/openbao
               readOnly: true
@@ -260,23 +294,23 @@ spec:
               readOnly: true
             {{- end }}
           {{- end }}
-      {{- if or .Values.persistence.enabled .Values.xjtag.enabled .Values.commerce.enabled .Values.trustedCa.enabled }}
+      {{- if or .Values.persistence.enabled $openbaoToken .Values.trustedCa.enabled }}
       volumes:
         {{- if .Values.persistence.enabled }}
         - name: engineering-files
           persistentVolumeClaim:
             claimName: {{ include "api.fullname" . }}-engineering-files
         {{- end }}
-        {{- if or .Values.xjtag.enabled .Values.commerce.enabled }}
-        {{- /* One token serves both: XJTAG's settings win when it's on. Both
-               roles bind audience "openbao". */}}
-        {{- $bao := ternary .Values.xjtag.openbao .Values.commerce.openbao .Values.xjtag.enabled }}
+        {{- if $openbaoToken }}
+        {{- /* One token serves every OpenBao login: XJTAG's settings win, then
+               Commerce's, then openbaoToken's. All roles bind audience "openbao". */}}
+        {{- $tok := ternary .Values.xjtag.openbao (ternary .Values.commerce.openbao .Values.openbaoToken .Values.commerce.enabled) .Values.xjtag.enabled }}
         - name: openbao-token
           projected:
             sources:
               - serviceAccountToken:
-                  audience: {{ $bao.audience | quote }}
-                  expirationSeconds: {{ int $bao.tokenExpirationSeconds }}
+                  audience: {{ $tok.audience | quote }}
+                  expirationSeconds: {{ int $tok.tokenExpirationSeconds }}
                   path: token
         {{- end }}
         {{- if .Values.xjtag.enabled }}

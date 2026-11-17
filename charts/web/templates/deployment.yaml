@@ -46,6 +46,12 @@ spec:
             - name: COLLABORA_UPSTREAM
               value: {{ . | quote }}
             {{- end }}
+            {{- with .Values.rtUpstream }}
+            # The realtime gateway (/rt). Only with realtime deployed, as for
+            # Collabora; unset, the image default answers 502 on /rt.
+            - name: RT_UPSTREAM
+              value: {{ . | quote }}
+            {{- end }}
           livenessProbe:
             httpGet:
               path: /healthz
