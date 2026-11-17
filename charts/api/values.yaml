@@ -150,3 +150,29 @@ openbaoToken:
 keys:
   openbaoAddr: http://openbao.openbao.svc:8200
   openbaoRole: meridian-keys
+
+# Shopify shops (Meridian Commerce). Each shop's Dev Dashboard app credentials
+# live in OpenBao at kv/meridian/shopify/<store key>. The API logs in with
+# kubernetes auth role `openbao.role`, using a projected SA token mounted at
+# /var/run/secrets/openbao/token (shared with xjtag). The role
+# (meridian-infra commerce/) binds the API's SA only, because every Shopify call
+# runs in the API process. Off by default; when off, commerce endpoints answer
+# 503 COMMERCE_UNCONFIGURED.
+commerce:
+  enabled: false
+  openbao:
+    addr: http://openbao.openbao.svc:8200
+    role: meridian-commerce
+    # Must match the role's bound audience. Kubelet rotates the token at about
+    # 80% of its life. Ignored when xjtag is on (its token settings are used).
+    audience: openbao
+    tokenExpirationSeconds: 600
+  # Safety sweep interval (MERIDIAN_COMMERCE_SWEEP_SECS). null = Meridian's default (300).
+  sweepSecs: null
+
+# Trust the cluster's CA bundle (OpenShift-injected) for the GHES OIDC JWKS
+# fetch (MERIDIAN_GHES_OIDC_CA_FILE). Needed when GHES is behind a private CA;
+# without it GHES Actions uploads (commerce config snapshots, XJTAG CI checks)
+# get 401. OpenShift only: relies on config.openshift.io/inject-trusted-cabundle.
+trustedCa:
+  enabled: false

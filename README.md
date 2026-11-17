@@ -93,6 +93,29 @@ The chart ships no NetworkPolicy; if one is added that selects the api pods,
 allow ingress on TCP 8080 from pods labelled
 `app.kubernetes.io/name: meridian-cad-converter`.
 
+## Shopify shops (`api.commerce`)
+
+The commerce module reads each shop's Shopify app credentials from OpenBao at `kv/meridian/shopify/<store key>`. It logs in with Kubernetes auth role `meridian-commerce`, using the same projected `aud=openbao` service-account token XJTAG uses, mounted at `/var/run/secrets/openbao/token`. No static credential is involved. meridian-infra `commerce/` owns the OpenBao side: the KV v2 mount, a read-only policy, and the role. The role binds only the API's SA (`api.testRunner.serviceAccountName`), so change both together.
+
+```yaml
+api:
+  commerce:
+    enabled: true
+    openbao:
+      addr: http://openbao.openbao.svc:8200
+      role: meridian-commerce
+    # sweepSecs: 300          # optional; the safety sweep interval
+```
+
+| Env var | Value |
+|---|---|
+| `MERIDIAN_COMMERCE_OPENBAO_ADDR` | `commerce.openbao.addr` |
+| `MERIDIAN_COMMERCE_OPENBAO_ROLE` | `commerce.openbao.role` |
+| `MERIDIAN_COMMERCE_SA_TOKEN_PATH` | `/var/run/secrets/openbao/token` (fixed) |
+| `MERIDIAN_COMMERCE_SWEEP_SECS` | `commerce.sweepSecs`, only when set |
+
+When it's off, the commerce endpoints that need Shopify answer 503 `COMMERCE_UNCONFIGURED`. The rest of Meridian is unaffected.
+
 ## XJTAG package pull from Quay (`api.xjtag`)
 
 ```yaml
