@@ -47,7 +47,7 @@ spec:
           name: {{ .Values.cnpg.clusterName }}-dbviewer
   {{- end }}
   {{- if .Values.cnpg.auditRoles.enabled }}
-      # Meridian DEPLOY.md 17: the audit tables' owner. NOLOGIN, NOINHERIT,
+      # Meridian DEPLOY.md 18: the audit tables' owner. NOLOGIN, NOINHERIT,
       # a member of nothing; nobody signs in as it. The app role (the
       # initdb owner) must never be a member (the migration refuses it).
       - name: meridian_audit

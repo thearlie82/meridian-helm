@@ -1,6 +1,6 @@
 {{- if .Values.migrationJob.enabled }}
 {{- /*
-The migration Job (Meridian DEPLOY.md 17): `meridian-api migrate` signs in
+The migration Job (Meridian DEPLOY.md 18): `meridian-api migrate` signs in
 as meridian_migrator and applies every pending migration before the api
 rolls out, the audit migrations included (the api's own role doesn't own
 the audit tables, so its start-up can't apply those). Same image as the api.
