@@ -22,13 +22,15 @@ spec:
       # would write file contents to the Postgres log.
       log_parameter_max_length: "0"
       log_parameter_max_length_on_error: "0"
+  {{- if or .Values.cnpg.dbViewer.enabled .Values.cnpg.auditRoles.enabled }}
+  managed:
+    roles:
+  {{- end }}
   {{- if .Values.cnpg.dbViewer.enabled }}
   # The DB viewer's own login (Meridian DEPLOY.md 16.2): a plain LOGIN role,
   # a member of nothing (the api refuses any membership either way), no
   # CREATEDB/CREATEROLE/BYPASSRLS/REPLICATION. The api's startup grants it
   # SELECT on its allowlist and sets its read-only session defaults.
-  managed:
-    roles:
       - name: meridian_dbviewer
         ensure: present
         comment: Meridian DB viewer (read-only, allowlisted tables)
@@ -43,6 +45,42 @@ spec:
         inRoles: []
         passwordSecret:
           name: {{ .Values.cnpg.clusterName }}-dbviewer
+  {{- end }}
+  {{- if .Values.cnpg.auditRoles.enabled }}
+      # Meridian DEPLOY.md 18: the audit tables' owner. NOLOGIN, NOINHERIT,
+      # a member of nothing; nobody signs in as it. The app role (the
+      # initdb owner) must never be a member (the migration refuses it).
+      - name: meridian_audit
+        ensure: present
+        comment: Meridian audit tables owner (append-only; no login)
+        login: false
+        inherit: false
+        superuser: false
+        createdb: false
+        createrole: false
+        replication: false
+        bypassrls: false
+        inRoles: []
+      # The migration Job's login: acts as the app role for ordinary
+      # migrations and as meridian_audit for audit migrations. Its password
+      # is generated in the cluster (cnpg-migrator-secret.yaml) and only the
+      # migration Job mounts it.
+      - name: meridian_migrator
+        ensure: present
+        comment: Meridian migration Job (pre-sync; owner and audit role member)
+        login: true
+        inherit: true
+        superuser: false
+        createdb: false
+        createrole: false
+        replication: false
+        bypassrls: false
+        connectionLimit: {{ .Values.cnpg.auditRoles.migratorConnectionLimit }}
+        inRoles:
+          - {{ .Values.cnpg.owner }}
+          - meridian_audit
+        passwordSecret:
+          name: {{ .Values.cnpg.clusterName }}-migrator
   {{- end }}
   bootstrap:
     initdb:

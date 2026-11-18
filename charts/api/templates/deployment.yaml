@@ -15,6 +15,11 @@ metadata:
   namespace: {{ .Values.global.namespace }}
   labels:
     {{- include "api.labels" . | nindent 4 }}
+  {{- if .Values.migrationJob.enabled }}
+  annotations:
+    # After the migration Job (a Sync hook in wave 1, DEPLOY.md 18).
+    argocd.argoproj.io/sync-wave: "2"
+  {{- end }}
 spec:
   replicas: {{ .Values.replicaCount }}
   revisionHistoryLimit: 1

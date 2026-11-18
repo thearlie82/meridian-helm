@@ -17,6 +17,16 @@ database:
   # The DB viewer's own login (MERIDIAN_DBVIEWER_DATABASE_URL); empty = unset.
   viewerSecretName: ""
   viewerUriKey: uri
+  # The migration Job's own login (MERIDIAN_MIGRATOR_DATABASE_URL, Meridian
+  # DEPLOY.md 18), from the Secret cnpg.auditRoles creates.
+  migratorSecretName: ""
+  migratorUriKey: uri
+# The migration Job (`meridian-api migrate` as meridian_migrator) before each
+# rollout. Needs cnpg.auditRoles and database.migratorSecretName.
+migrationJob:
+  enabled: false
+  backoffLimit: 10
+  activeDeadlineSeconds: 1800
 # MERIDIAN_ENV (always rendered): `production` refuses the dev-only
 # switches at startup; a dev cluster sets `dev`. Not settable under `env`.
 meridianEnv: production

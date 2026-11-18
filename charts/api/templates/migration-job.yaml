@@ -1,0 +1,75 @@
+{{- if .Values.migrationJob.enabled }}
+{{- /*
+The migration Job (Meridian DEPLOY.md 18): `meridian-api migrate` signs in
+as meridian_migrator and applies every pending migration before the api
+rolls out, the audit migrations included (the api's own role doesn't own
+the audit tables, so its start-up can't apply those). Same image as the api.
+
+Ordering under Argo CD: a Sync hook in wave 1, after the CNPG Cluster and the
+migrator Secret (wave 0, which create the managed role), before the api
+Deployment (wave 2). A failed Job fails the sync, so the api never rolls out
+onto an unmigrated database. Under plain Helm: post-install, pre-upgrade.
+Re-created on every sync (BeforeHookCreation).
+*/}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "api.fullname" . }}-migrate
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "api.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migrate
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    helm.sh/hook: post-install,pre-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  # The managed role can appear a little after the Cluster resource does.
+  backoffLimit: {{ .Values.migrationJob.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.migrationJob.activeDeadlineSeconds }}
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        {{- include "api.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: migrate
+    spec:
+      restartPolicy: Never
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["migrate"]
+          env:
+            - name: MERIDIAN_MIGRATOR_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "api.database.migratorSecretName must be set when api.migrationJob.enabled" .Values.database.migratorSecretName }}
+                  key: {{ .Values.database.migratorUriKey }}
+            - name: MERIDIAN_ENV
+              value: {{ required "api.meridianEnv must be set" .Values.meridianEnv | quote }}
+            - name: RUST_LOG
+              value: {{ .Values.env.RUST_LOG | default "info" | quote }}
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+{{- end }}
