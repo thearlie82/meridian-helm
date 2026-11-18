@@ -54,6 +54,8 @@ spec:
         ensure: present
         comment: Meridian audit tables owner (append-only; no login)
         login: false
+        # CNPG's default, set explicitly so Argo doesn't see a permanent diff.
+        connectionLimit: -1
         inherit: false
         superuser: false
         createdb: false
