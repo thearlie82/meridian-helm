@@ -105,7 +105,10 @@ cadConversion:
   enabled: true
   partNumberProperty: "PLM_PART_NUMBER"
   # ResourceQuota on Job objects in the namespace (converter + test runner).
-  maxJobs: 30
+  # A backstop, not a throttle: every automated test step is one Job, kept
+  # 10 minutes after it finishes, so a busy shop floor needs headroom (30
+  # filled on one kiosk partway through Op 10, 2026-11-23).
+  maxJobs: 100
 # XJTAG package pull from Quay (keyless). The api exchanges its projected
 # ServiceAccount token for an OpenBao client token (kubernetes auth), mints an
 # OIDC JWT, and trades that at Quay's robot federation endpoint for a pull
